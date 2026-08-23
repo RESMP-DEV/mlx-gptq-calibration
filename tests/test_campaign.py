@@ -21,7 +21,9 @@ class CampaignTests(unittest.TestCase):
         campaign = load_campaign(DEFAULT_CAMPAIGN)
         argv = stage_a_argv(campaign, 4)
         self.assertIn("cuda:0,cuda:1,cuda:2,cuda:3", argv)
-        self.assertIn("model.language_model.layers", argv)
+        self.assertIn("model.layers", argv)
+        self.assertIn("model.language_model", argv)
+        self.assertIn("language_model.model.layers", argv)
         self.assertIn(
             ".local/share/mlx-gptq-calibration/qwen3.8-27b-mxfp4/inputs/calibration.txt",
             argv,

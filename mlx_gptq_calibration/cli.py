@@ -231,6 +231,10 @@ def stage_a_argv(campaign: Campaign, gpu_count: int) -> list[str]:
         str(quant["vram_gb"]),
         "--layers-attr",
         campaign.data["model"]["layers_attr"],
+        "--checkpoint-model-prefix",
+        campaign.data["model"]["checkpoint_model_prefix"],
+        "--artifact-layers-prefix",
+        campaign.data["model"]["artifact_layers_prefix"],
         "--seed",
         str(quant["seed"]),
     ]

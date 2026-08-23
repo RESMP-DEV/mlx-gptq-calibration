@@ -5,7 +5,9 @@
     "id": "Qwen/Qwen3.8-27B",
     "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
     "weight_bytes": 55562855904,
-    "layers_attr": "model.language_model.layers"
+    "layers_attr": "model.layers",
+    "checkpoint_model_prefix": "model.language_model",
+    "artifact_layers_prefix": "language_model.model.layers"
   },
   "dataset": {
     "id": "RESMP-DEV/ptq-calibration-corpus",
@@ -15,7 +17,7 @@
   },
   "engine": {
     "repository": "https://github.com/RESMP-DEV/mlx-gptq-mxfp.git",
-    "commit": "d103c83bef49b966f6e694da0c36adfc5712846a",
+    "commit": "96d625634750a0a6256c1da5dd0084599f7efa91",
     "python": "3.13",
     "accelerate": "1.14.0"
   },
