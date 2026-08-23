@@ -8,7 +8,7 @@ The first campaign is pinned to:
 
 - Model: `Qwen/Qwen3.8-27B@1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`
 - Corpus: `RESMP-DEV/ptq-calibration-corpus@f73806747b6d90b7a4ba1c1f20b027345b3d4354`
-- Engine: `RESMP-DEV/mlx-gptq-mxfp@96d625634750a0a6256c1da5dd0084599f7efa91`
+- Engine: `RESMP-DEV/mlx-gptq-mxfp@83012dcb2d60a969382ac85dedd3767859d66ab7`
 - Output: native MLX MXFP4, group size 32, activation-Hessian GPTQ with safe
   E8M0 scale search
 
@@ -33,7 +33,8 @@ The checkpoint is a native vision-language wrapper. Transformers exposes a
 text-only causal runtime at `model.layers`, while the raw checkpoint uses
 `model.language_model.layers` and MLX uses `language_model.model.layers`. The
 pinned engine maps those three namespaces explicitly. The vision tower is not
-used to generate text calibration activations.
+used to generate calibration activations and `mlx-lm` drops it during
+conversion, so the final artifact is the Qwen3.8 text-generation model.
 
 ## Quick start
 
