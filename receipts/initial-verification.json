@@ -1,0 +1,37 @@
+{
+  "checked_at": "2026-08-22T16:58:04-07:00",
+  "corpus": {
+    "bytes": 1869185,
+    "local_path": "/Users/kearm/datasets/publish/ptq-calibration-corpus/calibration.txt",
+    "sha256": "244a35f5289efad6397342a6782350e464a5f180d8406d2969200722d7da5fb9"
+  },
+  "dataset": {
+    "gated": false,
+    "id": "RESMP-DEV/ptq-calibration-corpus",
+    "private": false,
+    "revision": "f73806747b6d90b7a4ba1c1f20b027345b3d4354"
+  },
+  "engine": {
+    "commit": "d103c83bef49b966f6e694da0c36adfc5712846a",
+    "tests_previously_verified": 25
+  },
+  "model": {
+    "architecture": "Qwen3_5ForConditionalGeneration",
+    "gated": false,
+    "id": "Qwen/Qwen3.8-27B",
+    "language_layers": 64,
+    "private": false,
+    "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "weight_bytes": 55562855904,
+    "weight_shards": 18
+  },
+  "reachable_cuda_probe": {
+    "disk_free_bytes": 1341157859328,
+    "driver": "595.84",
+    "gpu_count": 1,
+    "gpu_name": "NVIDIA GeForce RTX 5070 Laptop GPU",
+    "host": "strix",
+    "meets_campaign_requirement": false,
+    "vram_mib": 8151
+  }
+}

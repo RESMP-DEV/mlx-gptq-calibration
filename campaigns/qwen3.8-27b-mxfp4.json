@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "name": "qwen3.8-27b-mxfp4",
+  "model": {
+    "id": "Qwen/Qwen3.8-27B",
+    "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "weight_bytes": 55562855904,
+    "layers_attr": "model.language_model.layers"
+  },
+  "dataset": {
+    "id": "RESMP-DEV/ptq-calibration-corpus",
+    "revision": "f73806747b6d90b7a4ba1c1f20b027345b3d4354",
+    "filename": "calibration.txt",
+    "sha256": "244a35f5289efad6397342a6782350e464a5f180d8406d2969200722d7da5fb9"
+  },
+  "engine": {
+    "repository": "https://github.com/RESMP-DEV/mlx-gptq-mxfp.git",
+    "commit": "d103c83bef49b966f6e694da0c36adfc5712846a",
+    "python": "3.13",
+    "accelerate": "1.14.0"
+  },
+  "calibration": {
+    "mode": "mxfp4",
+    "mxfp_algorithm": "safe-scale-search",
+    "bits": 4,
+    "group_size": 32,
+    "nsamples": 256,
+    "seqlen": 2048,
+    "batch_size": 4,
+    "dtype": "bfloat16",
+    "damp": 0.01,
+    "clip": "mse",
+    "seed": 17,
+    "vram_gb": 20
+  },
+  "compute": {
+    "minimum_gpu_count": 4,
+    "minimum_vram_mib": 20000,
+    "remote_root": ".local/share/mlx-gptq-calibration/qwen3.8-27b-mxfp4"
+  },
+  "output": {
+    "mlx_model_name": "Qwen3.8-27B-MLX-GPTQ-MXFP4",
+    "huggingface_repo": "Kearm/Qwen3.8-27B-MLX-GPTQ-MXFP4",
+    "huggingface_private": true
+  }
+}

@@ -1,0 +1,10 @@
+.sindexer/
+.DS_Store
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.cache/
+runs/
