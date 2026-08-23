@@ -7,7 +7,12 @@ import unittest
 from pathlib import Path
 
 from mlx_gptq_calibration.campaign import CampaignError, load_campaign
-from mlx_gptq_calibration.cli import DEFAULT_CAMPAIGN, inspect_local_model, stage_a_argv
+from mlx_gptq_calibration.cli import (
+    DEFAULT_CAMPAIGN,
+    inspect_local_model,
+    remote_hfd_download_script,
+    stage_a_argv,
+)
 
 GEMMA_CAMPAIGN = DEFAULT_CAMPAIGN.with_name("gemma4-26b-a4b-qat-mxfp4.json")
 QWEN_MOE_CAMPAIGN = DEFAULT_CAMPAIGN.with_name("qwen3.6-35b-a3b-mxfp4.json")
@@ -40,6 +45,16 @@ class CampaignTests(unittest.TestCase):
         argv = stage_a_argv(campaign, [0, 2, 3], [4.2, 25.8, 83.4])
         self.assertIn("cuda:0,cuda:2,cuda:3", argv)
         self.assertIn("4.2,25.8,83.4", argv)
+
+    def test_remote_download_uses_hfd_without_xet(self) -> None:
+        campaign = load_campaign(DEFAULT_CAMPAIGN)
+        script = remote_hfd_download_script(campaign)
+        self.assertIn('"$hfd_bin" download Qwen/Qwen3.8-27B', script)
+        self.assertIn("--verify full", script)
+        self.assertIn('"$hfd_bin" verify Qwen/Qwen3.8-27B', script)
+        self.assertIn("HF_HUB_DISABLE_XET=1", script)
+        self.assertNotIn("HF_XET_HIGH_PERFORMANCE", script)
+        self.assertNotIn("hf download", script)
 
     def test_gemma_campaign_targets_the_moe_not_the_drafter(self) -> None:
         campaign = load_campaign(GEMMA_CAMPAIGN)

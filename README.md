@@ -102,8 +102,11 @@ uv run mlx-gptq-calibration prepare --host YOUR_CUDA_SSH_ALIAS
 ```
 
 `prepare` discovers complete pinned snapshots in `~/models` and the Hugging
-Face cache, transferring them with checksummed `rsync`; it falls back to a
-pinned Hub download on the CUDA host. An explicit source can be selected with
+Face cache, transferring them with checksummed `rsync`; it falls back to the
+independent `hfd` CLI on the CUDA host. The fallback disables Xet, pins the Hub
+revision, resumes through aria2, and verifies every LFS SHA-256 or Git blob
+before calibration can start. Install `hfd` in the remote `PATH` (or at
+`~/.local/bin/hfd`). An explicit local source can be selected with
 `--local-model PATH`.
 
 Start the resumable CUDA stage in the background, then monitor it:
@@ -129,7 +132,7 @@ Stage B needs the exact campaign source model on the Mac and an MLX-ready
 environment in the pinned engine checkout. For Qwen3.8:
 
 ```bash
-hf download Qwen/Qwen3.8-27B \
+hfd download Qwen/Qwen3.8-27B \
   --revision 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
   --local-dir ~/models/Qwen-Qwen3.8-27B-1d4bf0f
 

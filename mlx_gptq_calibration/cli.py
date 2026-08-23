@@ -400,6 +400,31 @@ def stage_a_argv(
     return argv
 
 
+def remote_hfd_download_script(campaign: Campaign) -> str:
+    root = campaign.remote_root.rstrip("/")
+    model = campaign.data["model"]
+    return f"""
+set -eu
+export HF_HUB_DISABLE_XET=1
+hfd_bin="$(command -v hfd || true)"
+if [ -z "$hfd_bin" ] && [ -x "$HOME/.local/bin/hfd" ]; then
+  hfd_bin="$HOME/.local/bin/hfd"
+fi
+if [ -z "$hfd_bin" ]; then
+  echo 'hfd CLI is required on the CUDA host' >&2
+  exit 127
+fi
+"$hfd_bin" download {shlex.quote(model["id"])} \
+  --revision {shlex.quote(model["revision"])} \
+  --output {shlex.quote(root)}/inputs/model \
+  --backend aria2 --verify full
+"$hfd_bin" verify {shlex.quote(model["id"])} \
+  --revision {shlex.quote(model["revision"])} \
+  --output {shlex.quote(root)}/inputs/model \
+  --mode full
+"""
+
+
 def cmd_verify(campaign: Campaign, _args: argparse.Namespace) -> int:
     corpus = find_corpus(campaign)
     hub = verify_hub(campaign)
@@ -488,22 +513,16 @@ uv pip install --python .venv/bin/python accelerate=={shlex.quote(engine["accele
         )
         model_source = {"kind": "local-rsync", **local_model_info}
     else:
-        download = f"""
-set -eu
-export HF_HUB_CACHE={shlex.quote(root)}/cache/huggingface
-export HF_XET_CACHE={shlex.quote(root)}/cache/xet
-export HF_XET_HIGH_PERFORMANCE=1
-{shlex.quote(root)}/engine/.venv/bin/hf download {shlex.quote(model["id"])} \
-  --revision {shlex.quote(model["revision"])} \
-  --local-dir {shlex.quote(root)}/inputs/model
+        download = remote_hfd_download_script(campaign) + f"""
 sha256sum {shlex.quote(remote_calibration)}
 test -f {shlex.quote(root)}/inputs/model/model.safetensors.index.json
 """
         _ssh(args.host, download)
         model_source = {
-            "kind": "remote-hub-download",
+            "kind": "remote-hfd-download",
             "id": model["id"],
             "revision": model["revision"],
+            "verification": "full",
         }
     receipt = _write_receipt(
         campaign,
