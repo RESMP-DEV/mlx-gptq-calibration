@@ -360,7 +360,7 @@ def stage_a_argv(
         "-m",
         "mlx_gptq.calibrate",
         "--model",
-        f"{root}/inputs/model",
+        campaign.remote_model_dir,
         "--output",
         f"{root}/artifacts",
         calibration_option,
@@ -401,8 +401,8 @@ def stage_a_argv(
 
 
 def remote_hfd_download_script(campaign: Campaign) -> str:
-    root = campaign.remote_root.rstrip("/")
     model = campaign.data["model"]
+    model_dir = campaign.remote_model_dir
     return f"""
 set -eu
 export HF_HUB_DISABLE_XET=1
@@ -416,11 +416,11 @@ if [ -z "$hfd_bin" ]; then
 fi
 "$hfd_bin" download {shlex.quote(model["id"])} \
   --revision {shlex.quote(model["revision"])} \
-  --output {shlex.quote(root)}/inputs/model \
+  --output {shlex.quote(model_dir)} \
   --backend aria2 --verify full
 "$hfd_bin" verify {shlex.quote(model["id"])} \
   --revision {shlex.quote(model["revision"])} \
-  --output {shlex.quote(root)}/inputs/model \
+  --output {shlex.quote(model_dir)} \
   --mode full
 """
 
@@ -461,11 +461,12 @@ def cmd_prepare(campaign: Campaign, args: argparse.Namespace) -> int:
     _require_satisfied(probe, args.allow_underprovisioned)
 
     root = campaign.remote_root.rstrip("/")
+    model_dir = campaign.remote_model_dir
     engine = campaign.data["engine"]
     model = campaign.data["model"]
     setup = f"""
 set -eu
-mkdir -p {shlex.quote(root)}/inputs {shlex.quote(root)}/cache/huggingface
+mkdir -p {shlex.quote(root)}/inputs {shlex.quote(model_dir)}
 if [ ! -d {shlex.quote(root)}/engine/.git ]; then
   git clone {shlex.quote(engine["repository"])} {shlex.quote(root)}/engine
 fi
@@ -508,14 +509,14 @@ uv pip install --python .venv/bin/python accelerate=={shlex.quote(engine["accele
                 "--exclude",
                 ".cache/",
                 f"{local_model}/",
-                f"{args.host}:{root}/inputs/model/",
+                f"{args.host}:{model_dir}/",
             ]
         )
         model_source = {"kind": "local-rsync", **local_model_info}
     else:
         download = remote_hfd_download_script(campaign) + f"""
 sha256sum {shlex.quote(remote_calibration)}
-test -f {shlex.quote(root)}/inputs/model/model.safetensors.index.json
+test -f {shlex.quote(model_dir)}/model.safetensors.index.json
 """
         _ssh(args.host, download)
         model_source = {
@@ -531,6 +532,7 @@ test -f {shlex.quote(root)}/inputs/model/model.safetensors.index.json
             "host": args.host,
             "probe": probe,
             "remote_root": root,
+            "remote_model_dir": model_dir,
             "model_source": model_source,
         },
     )
@@ -550,6 +552,7 @@ def cmd_start(campaign: Campaign, args: argparse.Namespace) -> int:
         vram_gb=solver_vram_gb(campaign, selected_gpus),
     )
     root = campaign.remote_root.rstrip("/")
+    model_dir = campaign.remote_model_dir
     calibration_filename = campaign.data["dataset"]["filename"]
     remote_calibration = (
         f"{root}/inputs/calibration.npy"
@@ -559,7 +562,7 @@ def cmd_start(campaign: Campaign, args: argparse.Namespace) -> int:
     command = shlex.join(argv)
     start = f"""
 set -eu
-test -f {shlex.quote(root)}/inputs/model/model.safetensors.index.json
+test -f {shlex.quote(model_dir)}/model.safetensors.index.json
 test -f {shlex.quote(remote_calibration)}
 if [ -f {shlex.quote(root)}/run.pid ] && \
   kill -0 "$(cat {shlex.quote(root)}/run.pid)" 2>/dev/null; then

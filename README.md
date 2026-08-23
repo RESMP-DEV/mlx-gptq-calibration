@@ -24,7 +24,7 @@ Mac (Git, credentials, pins, acceptance)
   | SSH: prepare/start/status
   | rsync: tokenizer-matched calibration.npy ->
   v
-CUDA host (model cache + layer-streamed GPTQ)
+CUDA host (`~/models` checkpoint library + layer-streamed GPTQ)
   | rsync: calibrated q/scales artifacts ->
   v
 Mac (mlx-lm conversion, injection, generation verification)
@@ -106,8 +106,9 @@ Face cache, transferring them with checksummed `rsync`; it falls back to the
 independent `hfd` CLI on the CUDA host. The fallback disables Xet, pins the Hub
 revision, resumes through aria2, and verifies every LFS SHA-256 or Git blob
 before calibration can start. Install `hfd` in the remote `PATH` (or at
-`~/.local/bin/hfd`). An explicit local source can be selected with
-`--local-model PATH`.
+`~/.local/bin/hfd`). Remote checkpoints live in a revision-suffixed `~/models`
+directory so other campaigns and tools can reuse them. An explicit local source
+can be selected with `--local-model PATH`.
 
 Start the resumable CUDA stage in the background, then monitor it:
 

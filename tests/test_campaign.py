@@ -29,6 +29,7 @@ class CampaignTests(unittest.TestCase):
     def test_stage_a_command_uses_qwen_tokens_and_language_layers(self) -> None:
         campaign = load_campaign(DEFAULT_CAMPAIGN)
         argv = stage_a_argv(campaign, 4)
+        self.assertIn("models/Qwen-Qwen3.8-27B-1d4bf0f", argv)
         self.assertIn("cuda:0,cuda:1,cuda:2,cuda:3", argv)
         self.assertIn("model.layers", argv)
         self.assertIn("model.language_model", argv)
@@ -55,6 +56,15 @@ class CampaignTests(unittest.TestCase):
         self.assertIn("HF_HUB_DISABLE_XET=1", script)
         self.assertNotIn("HF_XET_HIGH_PERFORMANCE", script)
         self.assertNotIn("hf download", script)
+        self.assertIn("--output models/Qwen-Qwen3.8-27B-1d4bf0f", script)
+
+    def test_shared_remote_model_directory_can_be_overridden(self) -> None:
+        data = json.loads(DEFAULT_CAMPAIGN.read_text())
+        data["compute"]["remote_model_dir"] = "models/shared-qwen"
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "campaign.json"
+            path.write_text(json.dumps(data))
+            self.assertEqual(load_campaign(path).remote_model_dir, "models/shared-qwen")
 
     def test_gemma_campaign_targets_the_moe_not_the_drafter(self) -> None:
         campaign = load_campaign(GEMMA_CAMPAIGN)

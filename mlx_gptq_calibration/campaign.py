@@ -26,6 +26,13 @@ class Campaign:
             "remote_root", f".local/share/mlx-gptq-calibration/{self.name}"
         )
 
+    @property
+    def remote_model_dir(self) -> str:
+        model = self.data["model"]
+        repo_slug = model["id"].replace("/", "-")
+        default = f"models/{repo_slug}-{model['revision'][:7]}"
+        return self.data["compute"].get("remote_model_dir", default)
+
     def remote_path(self, *parts: str) -> str:
         suffix = "/".join(part.strip("/") for part in parts)
         return f"{self.remote_root.rstrip('/')}/{suffix}"
