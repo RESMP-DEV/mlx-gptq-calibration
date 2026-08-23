@@ -102,9 +102,8 @@ hf download Qwen/Qwen3.8-27B \
   --revision 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
   --local-dir ~/models/Qwen-Qwen3.8-27B-1d4bf0f
 
-uv sync --directory /Users/kearm/mlx-gptq --frozen --extra mlx
-/Users/kearm/mlx-gptq/.venv/bin/python \
-  /Users/kearm/mlx-gptq/tools/patch_mlx_lm_tf512.py
+uv sync --directory ~/mlx-gptq --frozen --extra mlx
+~/mlx-gptq/.venv/bin/python ~/mlx-gptq/tools/patch_mlx_lm_tf512.py
 
 uv run mlx-gptq-calibration pack \
   --model ~/models/Qwen-Qwen3.8-27B-1d4bf0f
@@ -117,7 +116,7 @@ the layer artifacts already present on the CUDA host.
 ## Local artifacts
 
 The Mac currently has a verified copy of the exact corpus text, so it is sent
-directly instead of downloaded again. `/Users/kearm/Qwen3.6-27B` has the same
+directly instead of downloaded again. `~/Qwen3.6-27B` has the same
 Qwen3.5-family 64-layer shape and is useful for compatibility experiments, but
 its weights, config, tokenizer metadata, and 15-shard index do not match the
 pinned Qwen3.8 18-shard checkpoint. It is never accepted as the model input.
