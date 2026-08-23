@@ -1,14 +1,19 @@
 {
   "schema_version": 1,
-  "name": "qwen3.8-27b-mxfp4",
+  "name": "gemma4-26b-a4b-qat-mxfp4",
   "model": {
-    "id": "Qwen/Qwen3.8-27B",
-    "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
-    "model_type": "qwen3_5",
-    "weight_bytes": 55562855904,
-    "layers_attr": "model.layers",
-    "checkpoint_model_prefix": "model.language_model",
-    "artifact_layers_prefix": "language_model.model.layers"
+    "id": "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized",
+    "revision": "f1e06dc520982d9b9edd76859fdb7ab209449949",
+    "model_type": "gemma4",
+    "weight_bytes": 51611872412,
+    "parameter_count": 26544131376,
+    "layers_attr": "model.language_model.layers",
+    "artifact_layers_prefix": "language_model.model.layers",
+    "assistant": {
+      "id": "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized-assistant",
+      "revision": "9537141506fe8875b3ed45b264af13580cb29166",
+      "role": "optional speculative-decoding drafter; not the MoE calibration target"
+    }
   },
   "dataset": {
     "id": "RESMP-DEV/ptq-calibration-corpus",
@@ -41,7 +46,7 @@
     "minimum_vram_mib": 20000
   },
   "output": {
-    "mlx_model_name": "Qwen3.8-27B-MLX-GPTQ-MXFP4",
+    "mlx_model_name": "Gemma-4-26B-A4B-it-QAT-MLX-GPTQ-MXFP4",
     "huggingface_private": true
   }
 }

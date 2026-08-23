@@ -105,6 +105,108 @@ def find_corpus(campaign: Campaign) -> Path:
     )
 
 
+def inspect_local_model(campaign: Campaign, path: Path) -> dict[str, Any]:
+    config_path = path / "config.json"
+    index_path = path / "model.safetensors.index.json"
+    if not config_path.is_file() or not index_path.is_file():
+        raise CampaignError(f"incomplete model checkout at {path}: missing config or index")
+    config = json.loads(config_path.read_text())
+    expected_type = campaign.data["model"].get("model_type")
+    if config.get("model_type") != expected_type:
+        raise CampaignError(
+            f"wrong model at {path}: expected type {expected_type}, got {config.get('model_type')}"
+        )
+    index = json.loads(index_path.read_text())
+    total_size = int(index.get("metadata", {}).get("total_size", -1))
+    expected_size = campaign.data["model"]["weight_bytes"]
+    if total_size != expected_size:
+        raise CampaignError(
+            f"wrong model index at {path}: expected {expected_size} tensor bytes, got {total_size}"
+        )
+    shards = sorted(set(index.get("weight_map", {}).values()))
+    missing = [name for name in shards if not (path / name).is_file()]
+    if missing:
+        raise CampaignError(
+            f"incomplete model checkout at {path}: missing {len(missing)} shard(s), "
+            f"including {missing[0]}"
+        )
+    truncated = []
+    for name in shards:
+        shard = path / name
+        expected_file_size = _safetensors_expected_size(shard)
+        if shard.stat().st_size != expected_file_size:
+            truncated.append(f"{name}={shard.stat().st_size}/{expected_file_size} bytes")
+    if truncated:
+        raise CampaignError(f"incomplete model checkout at {path}: truncated shard {truncated[0]}")
+    return {
+        "path": str(path),
+        "model_type": config["model_type"],
+        "tensor_bytes": total_size,
+        "weight_shards": len(shards),
+    }
+
+
+def _safetensors_expected_size(path: Path) -> int:
+    with path.open("rb") as handle:
+        header_size_raw = handle.read(8)
+        if len(header_size_raw) != 8:
+            raise CampaignError(f"invalid safetensors shard {path}: missing header length")
+        header_size = int.from_bytes(header_size_raw, "little")
+        if header_size <= 0 or header_size > 128 * 1024 * 1024:
+            raise CampaignError(f"invalid safetensors shard {path}: bad header length")
+        header_raw = handle.read(header_size)
+    try:
+        header = json.loads(header_raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CampaignError(f"invalid safetensors shard {path}: malformed header") from exc
+    ends = [
+        value["data_offsets"][1]
+        for key, value in header.items()
+        if key != "__metadata__" and "data_offsets" in value
+    ]
+    if not ends:
+        raise CampaignError(f"invalid safetensors shard {path}: no tensors")
+    return 8 + header_size + max(ends)
+
+
+def find_local_model(
+    campaign: Campaign, explicit: str | None = None
+) -> tuple[Path, dict[str, Any]]:
+    candidates = [Path(explicit).expanduser()] if explicit else []
+    model = campaign.data["model"]
+    repo_slug = model["id"].replace("/", "-")
+    cache_slug = model["id"].replace("/", "--")
+    for prefix_length in (7, 8, 12, 40):
+        candidates.append(
+            Path.home() / "models" / f"{repo_slug}-{model['revision'][:prefix_length]}"
+        )
+    candidates.extend(
+        (
+            Path.home()
+            / ".cache/huggingface/hub"
+            / f"models--{cache_slug}"
+            / "snapshots"
+            / model["revision"],
+        )
+    )
+    errors = []
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        try:
+            resolved = candidate.resolve()
+            return resolved, inspect_local_model(campaign, resolved)
+        except CampaignError as exc:
+            errors.append(str(exc))
+            if explicit:
+                raise
+    detail = f"; {'; '.join(errors)}" if errors else ""
+    raise CampaignError(
+        "no complete local checkout of the pinned model was found; pass an explicit model path"
+        + detail
+    )
+
+
 def probe_remote(campaign: Campaign, host: str) -> dict[str, Any]:
     remote_root = campaign.remote_root
     script = r"""
@@ -195,7 +297,7 @@ def stage_a_argv(campaign: Campaign, gpu_count: int) -> list[str]:
     root = campaign.remote_root.rstrip("/")
     quant = campaign.data["calibration"]
     devices = ",".join(f"cuda:{index}" for index in range(gpu_count))
-    return [
+    argv = [
         f"{root}/engine/.venv/bin/python",
         "-m",
         "mlx_gptq.calibrate",
@@ -231,13 +333,13 @@ def stage_a_argv(campaign: Campaign, gpu_count: int) -> list[str]:
         str(quant["vram_gb"]),
         "--layers-attr",
         campaign.data["model"]["layers_attr"],
-        "--checkpoint-model-prefix",
-        campaign.data["model"]["checkpoint_model_prefix"],
-        "--artifact-layers-prefix",
-        campaign.data["model"]["artifact_layers_prefix"],
-        "--seed",
-        str(quant["seed"]),
     ]
+    if prefix := campaign.data["model"].get("checkpoint_model_prefix"):
+        argv.extend(("--checkpoint-model-prefix", prefix))
+    if prefix := campaign.data["model"].get("artifact_layers_prefix"):
+        argv.extend(("--artifact-layers-prefix", prefix))
+    argv.extend(("--seed", str(quant["seed"])))
+    return argv
 
 
 def cmd_verify(campaign: Campaign, _args: argparse.Namespace) -> int:
@@ -301,7 +403,29 @@ uv pip install --python .venv/bin/python accelerate=={shlex.quote(engine["accele
             f"{args.host}:{root}/inputs/calibration.txt",
         ]
     )
-    download = f"""
+    local_model = None
+    local_model_info = None
+    try:
+        local_model, local_model_info = find_local_model(campaign, args.local_model)
+    except CampaignError:
+        if args.local_model:
+            raise
+
+    if local_model is not None:
+        _run(
+            [
+                "rsync",
+                "-a",
+                "--checksum",
+                "--exclude",
+                ".cache/",
+                f"{local_model}/",
+                f"{args.host}:{root}/inputs/model/",
+            ]
+        )
+        model_source = {"kind": "local-rsync", **local_model_info}
+    else:
+        download = f"""
 set -eu
 export HF_HUB_CACHE={shlex.quote(root)}/cache/huggingface
 export HF_XET_CACHE={shlex.quote(root)}/cache/xet
@@ -312,11 +436,21 @@ export HF_XET_HIGH_PERFORMANCE=1
 sha256sum {shlex.quote(root)}/inputs/calibration.txt
 test -f {shlex.quote(root)}/inputs/model/model.safetensors.index.json
 """
-    _ssh(args.host, download)
+        _ssh(args.host, download)
+        model_source = {
+            "kind": "remote-hub-download",
+            "id": model["id"],
+            "revision": model["revision"],
+        }
     receipt = _write_receipt(
         campaign,
         f"prepare-{args.host}",
-        {"host": args.host, "probe": probe, "remote_root": root},
+        {
+            "host": args.host,
+            "probe": probe,
+            "remote_root": root,
+            "model_source": model_source,
+        },
     )
     print(receipt)
     return 0
@@ -425,11 +559,10 @@ def cmd_pack(campaign: Campaign, args: argparse.Namespace) -> int:
         raise CampaignError(
             f"missing {python}; run `uv sync --directory {engine} --frozen --extra mlx` first"
         )
-    source_model = Path(args.model).expanduser().resolve()
-    if not (source_model / "model.safetensors.index.json").is_file():
-        raise CampaignError("pack requires a complete local checkout of the pinned Qwen3.8 model")
+    source_model, model_info = find_local_model(campaign, args.model)
     calib = ROOT / "runs" / campaign.name / "calibration"
-    output = Path(args.output).expanduser().resolve()
+    output_value = args.output or f"~/models/{campaign.data['output']['mlx_model_name']}"
+    output = Path(output_value).expanduser().resolve()
     argv = [
         str(python),
         "-m",
@@ -446,7 +579,11 @@ def cmd_pack(campaign: Campaign, args: argparse.Namespace) -> int:
     receipt = _write_receipt(
         campaign,
         "pack",
-        {"source_model": str(source_model), "output": str(output), "engine_commit": actual_commit},
+        {
+            "source_model": model_info,
+            "output": str(output),
+            "engine_commit": actual_commit,
+        },
     )
     print(receipt)
     return 0
@@ -462,6 +599,8 @@ def build_parser() -> argparse.ArgumentParser:
         command = sub.add_parser(name)
         command.add_argument("--host", required=True)
         command.add_argument("--allow-underprovisioned", action="store_true")
+        if name == "prepare":
+            command.add_argument("--local-model")
 
     status = sub.add_parser("status")
     status.add_argument("--host", required=True)
@@ -472,8 +611,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     pack = sub.add_parser("pack")
     pack.add_argument("--engine", default="~/mlx-gptq")
-    pack.add_argument("--model", required=True)
-    pack.add_argument("--output", default="~/models/Qwen3.8-27B-MLX-GPTQ-MXFP4")
+    pack.add_argument("--model")
+    pack.add_argument("--output")
     return parser
 
 

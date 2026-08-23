@@ -8,7 +8,7 @@ The first campaign is pinned to:
 
 - Model: `Qwen/Qwen3.8-27B@1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`
 - Corpus: `RESMP-DEV/ptq-calibration-corpus@f73806747b6d90b7a4ba1c1f20b027345b3d4354`
-- Engine: `RESMP-DEV/mlx-gptq-mxfp@83012dcb2d60a969382ac85dedd3767859d66ab7`
+- Engine: `RESMP-DEV/mlx-gptq-mxfp@7fe79676bb717b4a282bf3aa11096f617f8f154f`
 - Output: native MLX MXFP4, group size 32, activation-Hessian GPTQ with safe
   E8M0 scale search
 
@@ -36,6 +36,17 @@ pinned engine maps those three namespaces explicitly. The vision tower is not
 used to generate calibration activations and `mlx-lm` drops it during
 conversion, so the final artifact is the Qwen3.8 text-generation model.
 
+The second campaign targets the actual Gemma 4 MoE checkpoint:
+
+- Model: `google/gemma-4-26B-A4B-it-qat-q4_0-unquantized@f1e06dc520982d9b9edd76859fdb7ab209449949`
+- Architecture: 25.2B total parameters, 3.8B active, 128 experts with top-8 routing
+- Source: BF16 weights extracted from Google's Q4_0 quantization-aware training
+- Output: native MLX MXFP4 with routed-token Hessians for every active expert
+
+The similarly named `...-unquantized-assistant` repository is only an 839 MB,
+four-layer dense speculative-decoding drafter. It is pinned in the campaign as
+an optional companion, but it is not substituted for the MoE target.
+
 ## Quick start
 
 The project itself has no third-party runtime dependency:
@@ -44,6 +55,14 @@ The project itself has no third-party runtime dependency:
 uv sync
 uv run mlx-gptq-calibration verify
 uv run mlx-gptq-calibration probe --host YOUR_CUDA_SSH_ALIAS
+```
+
+Select campaign two with:
+
+```bash
+GEMMA=campaigns/gemma4-26b-a4b-qat-mxfp4.json
+uv run mlx-gptq-calibration --campaign "$GEMMA" verify
+uv run mlx-gptq-calibration --campaign "$GEMMA" probe --host YOUR_CUDA_SSH_ALIAS
 ```
 
 The default acceptance target is four CUDA GPUs with at least 20,000 MiB each,
@@ -56,6 +75,11 @@ Prepare the isolated remote environment and pinned 55.6 GB checkpoint:
 ```bash
 uv run mlx-gptq-calibration prepare --host YOUR_CUDA_SSH_ALIAS
 ```
+
+`prepare` discovers complete pinned snapshots in `~/models` and the Hugging
+Face cache, transferring them with checksummed `rsync`; it falls back to a
+pinned Hub download on the CUDA host. An explicit source can be selected with
+`--local-model PATH`.
 
 Start the resumable CUDA stage in the background, then monitor it:
 
@@ -70,20 +94,20 @@ Fetch completed calibration artifacts:
 uv run mlx-gptq-calibration fetch --host YOUR_CUDA_SSH_ALIAS
 ```
 
-Stage B needs the exact pinned Qwen3.8 source model on the Mac and an MLX-ready
-environment in the pinned engine checkout:
+Stage B needs the exact campaign source model on the Mac and an MLX-ready
+environment in the pinned engine checkout. For Qwen3.8:
 
 ```bash
 hf download Qwen/Qwen3.8-27B \
   --revision 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0 \
-  --local-dir /Users/kearm/models/Qwen3.8-27B-1d4bf0f
+  --local-dir ~/models/Qwen-Qwen3.8-27B-1d4bf0f
 
 uv sync --directory /Users/kearm/mlx-gptq --frozen --extra mlx
 /Users/kearm/mlx-gptq/.venv/bin/python \
   /Users/kearm/mlx-gptq/tools/patch_mlx_lm_tf512.py
 
 uv run mlx-gptq-calibration pack \
-  --model /Users/kearm/models/Qwen3.8-27B-1d4bf0f
+  --model ~/models/Qwen-Qwen3.8-27B-1d4bf0f
 ```
 
 Every phase writes a machine-readable receipt below the ignored

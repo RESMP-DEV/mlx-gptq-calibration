@@ -6,7 +6,9 @@ import unittest
 from pathlib import Path
 
 from mlx_gptq_calibration.campaign import CampaignError, load_campaign
-from mlx_gptq_calibration.cli import DEFAULT_CAMPAIGN, stage_a_argv
+from mlx_gptq_calibration.cli import DEFAULT_CAMPAIGN, inspect_local_model, stage_a_argv
+
+GEMMA_CAMPAIGN = DEFAULT_CAMPAIGN.with_name("gemma4-26b-a4b-qat-mxfp4.json")
 
 
 class CampaignTests(unittest.TestCase):
@@ -29,6 +31,68 @@ class CampaignTests(unittest.TestCase):
             argv,
         )
         self.assertNotIn("calibration_256x2048.npy", argv)
+
+    def test_gemma_campaign_targets_the_moe_not_the_drafter(self) -> None:
+        campaign = load_campaign(GEMMA_CAMPAIGN)
+        self.assertEqual(
+            campaign.data["model"]["id"],
+            "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized",
+        )
+        self.assertEqual(campaign.data["model"]["model_type"], "gemma4")
+        self.assertEqual(
+            campaign.data["model"]["assistant"]["id"],
+            "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized-assistant",
+        )
+        argv = stage_a_argv(campaign, 4)
+        self.assertIn("model.language_model.layers", argv)
+        self.assertIn("language_model.model.layers", argv)
+        self.assertNotIn("--checkpoint-model-prefix", argv)
+
+    def test_local_model_requires_all_indexed_shards(self) -> None:
+        campaign = load_campaign(GEMMA_CAMPAIGN)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "config.json").write_text(json.dumps({"model_type": "gemma4"}))
+            (root / "model.safetensors.index.json").write_text(
+                json.dumps(
+                    {
+                        "metadata": {"total_size": 51611872412},
+                        "weight_map": {"a": "model-00001-of-00002.safetensors"},
+                    }
+                )
+            )
+            with self.assertRaisesRegex(CampaignError, "missing 1 shard"):
+                inspect_local_model(campaign, root)
+            header = json.dumps(
+                {"weight": {"dtype": "U8", "shape": [7], "data_offsets": [0, 7]}}
+            ).encode()
+            (root / "model-00001-of-00002.safetensors").write_bytes(
+                len(header).to_bytes(8, "little") + header + b"fixture"
+            )
+            receipt = inspect_local_model(campaign, root)
+            self.assertEqual(receipt["weight_shards"], 1)
+
+    def test_local_model_rejects_partial_safetensors_file(self) -> None:
+        campaign = load_campaign(GEMMA_CAMPAIGN)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "config.json").write_text(json.dumps({"model_type": "gemma4"}))
+            (root / "model.safetensors.index.json").write_text(
+                json.dumps(
+                    {
+                        "metadata": {"total_size": 51611872412},
+                        "weight_map": {"a": "model.safetensors"},
+                    }
+                )
+            )
+            header = json.dumps(
+                {"weight": {"dtype": "U8", "shape": [100], "data_offsets": [0, 100]}}
+            ).encode()
+            (root / "model.safetensors").write_bytes(
+                len(header).to_bytes(8, "little") + header + b"partial"
+            )
+            with self.assertRaisesRegex(CampaignError, "truncated shard"):
+                inspect_local_model(campaign, root)
 
     def test_rejects_invalid_native_mxfp_shape(self) -> None:
         data = json.loads(DEFAULT_CAMPAIGN.read_text())

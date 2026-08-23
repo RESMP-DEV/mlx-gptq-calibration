@@ -22,7 +22,9 @@ class Campaign:
 
     @property
     def remote_root(self) -> str:
-        return self.data["compute"]["remote_root"]
+        return self.data["compute"].get(
+            "remote_root", f".local/share/mlx-gptq-calibration/{self.name}"
+        )
 
     def remote_path(self, *parts: str) -> str:
         suffix = "/".join(part.strip("/") for part in parts)
