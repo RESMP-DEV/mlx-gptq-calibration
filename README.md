@@ -8,7 +8,7 @@ The first campaign is pinned to:
 
 - Model: `Qwen/Qwen3.8-27B@1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`
 - Corpus: `RESMP-DEV/ptq-calibration-corpus@f73806747b6d90b7a4ba1c1f20b027345b3d4354`
-- Engine: `RESMP-DEV/mlx-gptq-mxfp@7fe79676bb717b4a282bf3aa11096f617f8f154f`
+- Engine: `RESMP-DEV/mlx-gptq-mxfp@7131c407af8b8991fb5a8148a49cf2f323c7afd3`
 - Output: native MLX MXFP4, group size 32, activation-Hessian GPTQ with safe
   E8M0 scale search
 
@@ -65,10 +65,16 @@ uv run mlx-gptq-calibration --campaign "$GEMMA" verify
 uv run mlx-gptq-calibration --campaign "$GEMMA" probe --host YOUR_CUDA_SSH_ALIAS
 ```
 
-The default acceptance target is four CUDA GPUs with at least 20,000 MiB each,
-matching a 4x24 GB workstation. A smaller host can be inspected, but
-`prepare`/`start` reject it unless `--allow-underprovisioned` is supplied
-explicitly.
+The practical floor is one CUDA GPU reporting at least 8,000 MiB VRAM. This is
+not a full-model residency requirement: the pipeline streams one decoder layer
+at a time and derives the per-GPU expert-solve budget from live free memory,
+while reserving headroom for the driver, layer, and activation working set.
+Sub-8 GB operation can be forced with `--allow-underprovisioned`, but is likely
+to lose the practical advantage over local MLX calibration. There is no
+multi-GPU requirement or recommendation; every eligible GPU present is used.
+Budgets are computed independently, so mixed 24 GB, 32 GB, and 96 GB devices
+retain their own expert-chunk capacity instead of being throttled to the
+smallest GPU.
 
 Prepare the isolated remote environment and pinned 55.6 GB checkpoint:
 

@@ -12,9 +12,9 @@
     "revision": "f73806747b6d90b7a4ba1c1f20b027345b3d4354"
   },
   "engine": {
-    "commit": "7fe79676bb717b4a282bf3aa11096f617f8f154f",
-    "tests_passed": 12,
-    "tests_skipped": 3
+    "commit": "7131c407af8b8991fb5a8148a49cf2f323c7afd3",
+    "tests_passed": 33,
+    "tests_skipped": 0
   },
   "model": {
     "architecture": "Qwen3_5ForConditionalGeneration",
@@ -27,12 +27,14 @@
     "weight_shards": 18
   },
   "reachable_cuda_probe": {
-    "disk_free_bytes": 1341157859328,
+    "disk_free_bytes": 1280912662528,
     "driver": "595.84",
     "gpu_count": 1,
     "gpu_name": "NVIDIA GeForce RTX 5070 Laptop GPU",
     "host": "strix",
-    "meets_campaign_requirement": false,
+    "meets_campaign_requirement": true,
+    "solver_vram_gb": 4.2,
+    "vram_free_mib": 7545,
     "vram_mib": 8151
   }
 }

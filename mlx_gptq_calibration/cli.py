@@ -213,7 +213,7 @@ def probe_remote(campaign: Campaign, host: str) -> dict[str, Any]:
 set -eu
 root="$1"
 gpu_rows="$(nvidia-smi \
-  --query-gpu=index,name,memory.total,driver_version \
+  --query-gpu=index,name,memory.total,memory.free,driver_version \
   --format=csv,noheader,nounits)"
 python3 - "$root" "$gpu_rows" <<'PY'
 import json, os, shutil, socket, subprocess, sys
@@ -228,8 +228,14 @@ while not os.path.exists(probe_path):
 usage = shutil.disk_usage(probe_path)
 gpus = []
 for row in rows.splitlines():
-    index, name, memory, driver = [part.strip() for part in row.split(',', 3)]
-    gpus.append({"index": int(index), "name": name, "memory_mib": int(memory), "driver": driver})
+    index, name, memory, free, driver = [part.strip() for part in row.split(',', 4)]
+    gpus.append({
+        "index": int(index),
+        "name": name,
+        "memory_mib": int(memory),
+        "memory_free_mib": int(free),
+        "driver": driver,
+    })
 print(json.dumps({
     "hostname": socket.gethostname(),
     "gpus": gpus,
@@ -257,13 +263,12 @@ PY
         capture_output=True,
     )
     probe = json.loads(result.stdout)
-    minimum_count = campaign.data["compute"]["minimum_gpu_count"]
-    minimum_vram = campaign.data["compute"]["minimum_vram_mib"]
+    minimum_vram = campaign.data["compute"].get("minimum_vram_mib", 0)
+    eligible = [gpu for gpu in probe["gpus"] if gpu["memory_mib"] >= minimum_vram]
     probe["requirements"] = {
-        "minimum_gpu_count": minimum_count,
         "minimum_vram_mib": minimum_vram,
-        "satisfied": len(probe["gpus"]) >= minimum_count
-        and all(gpu["memory_mib"] >= minimum_vram for gpu in probe["gpus"][:minimum_count]),
+        "eligible_gpu_indices": [gpu["index"] for gpu in eligible],
+        "satisfied": bool(eligible),
     }
     return probe
 
@@ -284,19 +289,45 @@ def _write_receipt(campaign: Campaign, name: str, payload: dict[str, Any]) -> Pa
 def _require_satisfied(probe: dict[str, Any], allow: bool) -> None:
     if probe["requirements"]["satisfied"] or allow:
         return
-    got = ", ".join(f"{gpu['name']} ({gpu['memory_mib']} MiB)" for gpu in probe["gpus"])
     required = probe["requirements"]
     raise CampaignError(
-        f"CUDA host is underprovisioned: got {len(probe['gpus'])} GPU(s): {got}; "
-        f"campaign requires {required['minimum_gpu_count']} GPU(s) with at least "
-        f"{required['minimum_vram_mib']} MiB each"
+        "CUDA host has no eligible NVIDIA GPU with at least "
+        f"{required['minimum_vram_mib']} MiB VRAM"
     )
 
 
-def stage_a_argv(campaign: Campaign, gpu_count: int) -> list[str]:
+def eligible_gpus(campaign: Campaign, probe: dict[str, Any]) -> list[dict[str, Any]]:
+    minimum_vram = campaign.data["compute"].get("minimum_vram_mib", 0)
+    return [gpu for gpu in probe["gpus"] if gpu["memory_mib"] >= minimum_vram]
+
+
+def solver_vram_gb(campaign: Campaign, gpus: list[dict[str, Any]]) -> list[float]:
+    if not gpus:
+        raise CampaignError("no CUDA GPUs were detected")
+    quant = campaign.data["calibration"]
+    fraction = quant.get("vram_fraction", 0.9)
+    reserve = quant.get("vram_reserve_gib", 3)
+    budgets: list[float] = []
+    for gpu in gpus:
+        total_gib = gpu["memory_mib"] / 1024
+        free_gib = gpu.get("memory_free_mib", gpu["memory_mib"]) / 1024
+        budgets.append(round(max(0.1, min(total_gib * fraction, free_gib) - reserve), 1))
+    return budgets
+
+
+def stage_a_argv(
+    campaign: Campaign,
+    gpu_count: int | list[int],
+    vram_gb: float | list[float] | None = None,
+) -> list[str]:
     root = campaign.remote_root.rstrip("/")
     quant = campaign.data["calibration"]
-    devices = ",".join(f"cuda:{index}" for index in range(gpu_count))
+    indices = range(gpu_count) if isinstance(gpu_count, int) else gpu_count
+    devices = ",".join(f"cuda:{index}" for index in indices)
+    if isinstance(vram_gb, list):
+        vram_arg = ",".join(str(value) for value in vram_gb)
+    else:
+        vram_arg = str(vram_gb if vram_gb is not None else 4.0)
     argv = [
         f"{root}/engine/.venv/bin/python",
         "-m",
@@ -330,7 +361,7 @@ def stage_a_argv(campaign: Campaign, gpu_count: int) -> list[str]:
         "--devices",
         devices,
         "--vram-gb",
-        str(quant["vram_gb"]),
+        vram_arg,
         "--layers-attr",
         campaign.data["model"]["layers_attr"],
     ]
@@ -459,7 +490,14 @@ test -f {shlex.quote(root)}/inputs/model/model.safetensors.index.json
 def cmd_start(campaign: Campaign, args: argparse.Namespace) -> int:
     probe = probe_remote(campaign, args.host)
     _require_satisfied(probe, args.allow_underprovisioned)
-    argv = stage_a_argv(campaign, len(probe["gpus"]))
+    selected_gpus = eligible_gpus(campaign, probe)
+    if not selected_gpus and args.allow_underprovisioned:
+        selected_gpus = probe["gpus"]
+    argv = stage_a_argv(
+        campaign,
+        [gpu["index"] for gpu in selected_gpus],
+        vram_gb=solver_vram_gb(campaign, selected_gpus),
+    )
     root = campaign.remote_root.rstrip("/")
     command = shlex.join(argv)
     start = f"""

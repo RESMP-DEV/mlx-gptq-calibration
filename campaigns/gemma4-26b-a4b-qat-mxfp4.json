@@ -23,7 +23,7 @@
   },
   "engine": {
     "repository": "https://github.com/RESMP-DEV/mlx-gptq-mxfp.git",
-    "commit": "7fe79676bb717b4a282bf3aa11096f617f8f154f",
+    "commit": "7131c407af8b8991fb5a8148a49cf2f323c7afd3",
     "python": "3.13",
     "accelerate": "1.14.0"
   },
@@ -39,11 +39,11 @@
     "damp": 0.01,
     "clip": "mse",
     "seed": 17,
-    "vram_gb": 20
+    "vram_fraction": 0.9,
+    "vram_reserve_gib": 3
   },
   "compute": {
-    "minimum_gpu_count": 4,
-    "minimum_vram_mib": 20000
+    "minimum_vram_mib": 8000
   },
   "output": {
     "mlx_model_name": "Gemma-4-26B-A4B-it-QAT-MLX-GPTQ-MXFP4",

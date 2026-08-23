@@ -32,6 +32,12 @@ class CampaignTests(unittest.TestCase):
         )
         self.assertNotIn("calibration_256x2048.npy", argv)
 
+    def test_stage_a_command_preserves_heterogeneous_gpu_budgets(self) -> None:
+        campaign = load_campaign(DEFAULT_CAMPAIGN)
+        argv = stage_a_argv(campaign, [0, 2, 3], [4.2, 25.8, 83.4])
+        self.assertIn("cuda:0,cuda:2,cuda:3", argv)
+        self.assertIn("4.2,25.8,83.4", argv)
+
     def test_gemma_campaign_targets_the_moe_not_the_drafter(self) -> None:
         campaign = load_campaign(GEMMA_CAMPAIGN)
         self.assertEqual(
