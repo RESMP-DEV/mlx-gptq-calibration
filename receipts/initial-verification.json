@@ -1,15 +1,17 @@
 {
   "checked_at": "2026-08-22T16:58:04-07:00",
-  "corpus": {
-    "bytes": 1869185,
-    "local_path": "/Users/kearm/datasets/publish/ptq-calibration-corpus/calibration.txt",
-    "sha256": "244a35f5289efad6397342a6782350e464a5f180d8406d2969200722d7da5fb9"
+  "calibration": {
+    "bytes": 4194432,
+    "local_path": "/Users/kearm/datasets/publish/ptq-calibration-corpus/data/calibration_256x2048.npy",
+    "sha256": "d7dd281b1f1756a6492361e1dfb0c65fed259f8a3d65eabbcb51809b50bd35d7",
+    "shape": [256, 2048],
+    "tokenizer": "Qwen/Qwen3.8-27B"
   },
   "dataset": {
     "gated": false,
     "id": "RESMP-DEV/ptq-calibration-corpus",
     "private": false,
-    "revision": "f73806747b6d90b7a4ba1c1f20b027345b3d4354"
+    "revision": "ffa2e74b9361d573167373140f10dfd30c69a327"
   },
   "engine": {
     "commit": "7131c407af8b8991fb5a8148a49cf2f323c7afd3",

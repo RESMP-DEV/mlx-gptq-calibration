@@ -17,9 +17,11 @@
   },
   "dataset": {
     "id": "RESMP-DEV/ptq-calibration-corpus",
-    "revision": "f73806747b6d90b7a4ba1c1f20b027345b3d4354",
-    "filename": "calibration.txt",
-    "sha256": "244a35f5289efad6397342a6782350e464a5f180d8406d2969200722d7da5fb9"
+    "revision": "ffa2e74b9361d573167373140f10dfd30c69a327",
+    "filename": "data/tokenizers/gemma4-26b-a4b/calibration_256x2048.npy",
+    "sha256": "bc78dc0b001f2092c1703b46609f2d5ba9e9fd6eabbede2387a233e9b8e248a5",
+    "tokenizer": "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized",
+    "tokenizer_revision": "f1e06dc520982d9b9edd76859fdb7ab209449949"
   },
   "engine": {
     "repository": "https://github.com/RESMP-DEV/mlx-gptq-mxfp.git",
@@ -44,6 +46,19 @@
   },
   "compute": {
     "minimum_vram_mib": 8000
+  },
+  "packing": {
+    "keep_bf16_regex": "(^|\\.)(gate|router)($|\\.)|shared_expert_gate|e_score"
+  },
+  "hybrid": {
+    "source": {
+      "id": "google/gemma-4-26B-A4B-it",
+      "revision": "4d7ae4984b7db7de8f8457170b3f1a419ee76d52"
+    },
+    "match": "\\.router\\.(proj\\.weight|scale|per_expert_scale)$",
+    "source_prefix": "model.language_model.layers.",
+    "target_prefix": "language_model.model.layers.",
+    "overlay_name": "gemma4-base-bf16-router.safetensors"
   },
   "output": {
     "mlx_model_name": "Gemma-4-26B-A4B-it-QAT-MLX-GPTQ-MXFP4",

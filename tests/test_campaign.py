@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ from mlx_gptq_calibration.campaign import CampaignError, load_campaign
 from mlx_gptq_calibration.cli import DEFAULT_CAMPAIGN, inspect_local_model, stage_a_argv
 
 GEMMA_CAMPAIGN = DEFAULT_CAMPAIGN.with_name("gemma4-26b-a4b-qat-mxfp4.json")
+QWEN_MOE_CAMPAIGN = DEFAULT_CAMPAIGN.with_name("qwen3.6-35b-a3b-mxfp4.json")
 
 
 class CampaignTests(unittest.TestCase):
@@ -19,18 +21,19 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(campaign.data["calibration"]["mode"], "mxfp4")
         self.assertEqual(campaign.data["calibration"]["group_size"], 32)
 
-    def test_stage_a_command_uses_raw_corpus_and_language_layers(self) -> None:
+    def test_stage_a_command_uses_qwen_tokens_and_language_layers(self) -> None:
         campaign = load_campaign(DEFAULT_CAMPAIGN)
         argv = stage_a_argv(campaign, 4)
         self.assertIn("cuda:0,cuda:1,cuda:2,cuda:3", argv)
         self.assertIn("model.layers", argv)
         self.assertIn("model.language_model", argv)
         self.assertIn("language_model.model.layers", argv)
+        self.assertIn("--calibration-tokens", argv)
         self.assertIn(
-            ".local/share/mlx-gptq-calibration/qwen3.8-27b-mxfp4/inputs/calibration.txt",
+            ".local/share/mlx-gptq-calibration/qwen3.8-27b-mxfp4/inputs/calibration.npy",
             argv,
         )
-        self.assertNotIn("calibration_256x2048.npy", argv)
+        self.assertNotIn("--dataset", argv)
 
     def test_stage_a_command_preserves_heterogeneous_gpu_budgets(self) -> None:
         campaign = load_campaign(DEFAULT_CAMPAIGN)
@@ -53,6 +56,25 @@ class CampaignTests(unittest.TestCase):
         self.assertIn("model.language_model.layers", argv)
         self.assertIn("language_model.model.layers", argv)
         self.assertNotIn("--checkpoint-model-prefix", argv)
+
+    def test_gemma_hybrid_is_pinned_and_router_is_kept_bf16(self) -> None:
+        campaign = load_campaign(GEMMA_CAMPAIGN)
+        hybrid = campaign.data["hybrid"]
+        self.assertEqual(hybrid["source"]["id"], "google/gemma-4-26B-A4B-it")
+        self.assertEqual(
+            hybrid["source"]["revision"],
+            "4d7ae4984b7db7de8f8457170b3f1a419ee76d52",
+        )
+        keep = re.compile(campaign.data["packing"]["keep_bf16_regex"])
+        self.assertIsNotNone(keep.search("language_model.model.layers.0.router.proj"))
+
+    def test_qwen36_moe_control_is_pinned_and_keeps_both_gates_bf16(self) -> None:
+        campaign = load_campaign(QWEN_MOE_CAMPAIGN)
+        self.assertEqual(campaign.data["model"]["id"], "Qwen/Qwen3.6-35B-A3B")
+        self.assertEqual(campaign.data["model"]["model_type"], "qwen3_5_moe")
+        keep = re.compile(campaign.data["packing"]["keep_bf16_regex"])
+        self.assertIsNotNone(keep.search("language_model.model.layers.0.mlp.gate"))
+        self.assertIsNotNone(keep.search("language_model.model.layers.0.mlp.shared_expert_gate"))
 
     def test_local_model_requires_all_indexed_shards(self) -> None:
         campaign = load_campaign(GEMMA_CAMPAIGN)

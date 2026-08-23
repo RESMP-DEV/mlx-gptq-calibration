@@ -7,21 +7,22 @@ artifacts are packed and verified locally as standard `mlx-lm` models.
 The first campaign is pinned to:
 
 - Model: `Qwen/Qwen3.8-27B@1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0`
-- Corpus: `RESMP-DEV/ptq-calibration-corpus@f73806747b6d90b7a4ba1c1f20b027345b3d4354`
+- Corpus: `RESMP-DEV/ptq-calibration-corpus@ffa2e74b9361d573167373140f10dfd30c69a327`
 - Engine: `RESMP-DEV/mlx-gptq-mxfp@7131c407af8b8991fb5a8148a49cf2f323c7afd3`
 - Output: native MLX MXFP4, group size 32, activation-Hessian GPTQ with safe
   E8M0 scale search
 
-`calibration.txt` is retokenized with the pinned Qwen tokenizer. The corpus's
-included `calibration_256x2048.npy` is intentionally not used because those
-token IDs were produced for LFM2.5 and are not portable across tokenizers.
+The first campaign consumes the dataset's default Qwen3.8-tokenized
+`data/calibration_256x2048.npy`. The model-neutral `calibration.txt` remains
+available for targets without a published matching matrix; token IDs are never
+reused across tokenizers.
 
 ## Architecture
 
 ```text
 Mac (Git, credentials, pins, acceptance)
   | SSH: prepare/start/status
-  | rsync: calibration.txt ->
+  | rsync: tokenizer-matched calibration.npy ->
   v
 CUDA host (model cache + layer-streamed GPTQ)
   | rsync: calibrated q/scales artifacts ->
@@ -46,6 +47,24 @@ The second campaign targets the actual Gemma 4 MoE checkpoint:
 The similarly named `...-unquantized-assistant` repository is only an 839 MB,
 four-layer dense speculative-decoding drafter. It is pinned in the campaign as
 an optional companion, but it is not substituted for the MoE target.
+
+## Hybrid BF16 router experiment
+
+The Gemma campaign also pins its ordinary BF16 parent and can fetch only the
+21.8 MB router state as a safetensors overlay. This supports two distinct
+mixed-precision variants without downloading another 51.6 GB checkpoint:
+
+- QAT-derived GPTQ MXFP4 with the QAT router retained in BF16.
+- The same packed model with the ordinary parent BF16 router transplanted.
+
+The campaign's packing regex explicitly keeps `router.*`, `gate`, shared-expert
+gates, and score-correction paths out of low-bit conversion. This also prevents
+the custom pack predicate from accidentally overriding Gemma 4's native router
+policy and quantizing `router.proj` to ordinary 4-bit RTN.
+
+See [docs/hybrid-bf16-surgery.md](docs/hybrid-bf16-surgery.md) for the evidence,
+ablation matrix, routing metrics, the pinned Qwen3.6-35B-A3B non-QAT control, and
+the artifact-level audit of JoyAI-LLM Flash as a second genuine QAT MoE.
 
 ## Quick start
 
@@ -100,6 +119,12 @@ Fetch completed calibration artifacts:
 uv run mlx-gptq-calibration fetch --host YOUR_CUDA_SSH_ALIAS
 ```
 
+Fetch the pinned parent-BF16 router overlay for the Gemma hybrid:
+
+```bash
+uv run mlx-gptq-calibration --campaign "$GEMMA" fetch-overlay
+```
+
 Stage B needs the exact campaign source model on the Mac and an MLX-ready
 environment in the pinned engine checkout. For Qwen3.8:
 
@@ -121,15 +146,17 @@ the layer artifacts already present on the CUDA host.
 
 ## Local artifacts
 
-The Mac currently has a verified copy of the exact corpus text, so it is sent
-directly instead of downloaded again. `~/Qwen3.6-27B` has the same
+The Mac currently has the verified Qwen3.8 token matrix used by campaign one
+and the Gemma 4 matrix used by campaign two, so each is sent directly instead
+of being downloaded again. `~/Qwen3.6-27B` has the same
 Qwen3.5-family 64-layer shape and is useful for compatibility experiments, but
 its weights, config, tokenizer metadata, and 15-shard index do not match the
 pinned Qwen3.8 18-shard checkpoint. It is never accepted as the model input.
 
 ## Safety properties
 
-- Model, dataset, engine, and corpus content are independently pinned.
+- Model, dataset, engine, and tokenizer-specific calibration content are
+  independently pinned.
 - Remote work lives under a campaign-specific directory and never owns Git or
   credentials for this project.
 - The remote start is detached, logged, resumable, and refuses duplicate runs.

@@ -12,12 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from .campaign import Campaign, CampaignError, load_campaign, sha256_file
+from .hybrid import apply_overlay, fetch_overlay
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CAMPAIGN = ROOT / "campaigns" / "qwen3.8-27b-mxfp4.json"
-LOCAL_CORPUS_CANDIDATES = (
-    Path.home() / "datasets/publish/ptq-calibration-corpus/calibration.txt",
-    Path.home() / "RESMP-DEV/hf-dataset-card-staging/ptq-calibration-corpus/calibration.txt",
+LOCAL_DATASET_ROOTS = (
+    Path.home() / "datasets/publish/ptq-calibration-corpus",
+    Path.home() / "RESMP-DEV/hf-dataset-card-staging/ptq-calibration-corpus",
 )
 
 
@@ -69,7 +70,7 @@ def verify_hub(campaign: Campaign) -> dict[str, Any]:
         raise CampaignError(
             f"dataset revision moved: pinned {expected_dataset}, live {dataset.get('sha')}"
         )
-    return {
+    result = {
         "model": {
             "id": model.get("id"),
             "sha": model.get("sha"),
@@ -83,13 +84,29 @@ def verify_hub(campaign: Campaign) -> dict[str, Any]:
             "gated": dataset.get("gated"),
         },
     }
+    if hybrid := campaign.data.get("hybrid"):
+        source = hybrid["source"]
+        live_source = _api_json("model", source["id"], source["revision"])
+        if live_source.get("sha") != source["revision"]:
+            raise CampaignError(
+                "hybrid source revision moved: pinned "
+                f"{source['revision']}, live {live_source.get('sha')}"
+            )
+        result["hybrid_source"] = {
+            "id": live_source.get("id"),
+            "sha": live_source.get("sha"),
+            "private": live_source.get("private"),
+            "gated": live_source.get("gated"),
+        }
+    return result
 
 
 def find_corpus(campaign: Campaign) -> Path:
     candidates: list[Path] = []
     if override := os.environ.get("PTQ_CALIBRATION_CORPUS"):
         candidates.append(Path(override).expanduser())
-    candidates.extend(LOCAL_CORPUS_CANDIDATES)
+    filename = campaign.data["dataset"]["filename"]
+    candidates.extend(root / filename for root in LOCAL_DATASET_ROOTS)
     expected = campaign.data["dataset"]["sha256"]
     mismatches: list[str] = []
     for candidate in candidates:
@@ -101,7 +118,8 @@ def find_corpus(campaign: Campaign) -> Path:
         mismatches.append(f"{candidate}={actual}")
     detail = f"; mismatches: {', '.join(mismatches)}" if mismatches else ""
     raise CampaignError(
-        "pinned calibration.txt is not available locally; set PTQ_CALIBRATION_CORPUS" + detail
+        f"pinned calibration artifact {filename} is not available locally; "
+        "set PTQ_CALIBRATION_CORPUS" + detail
     )
 
 
@@ -328,6 +346,15 @@ def stage_a_argv(
         vram_arg = ",".join(str(value) for value in vram_gb)
     else:
         vram_arg = str(vram_gb if vram_gb is not None else 4.0)
+    calibration_filename = campaign.data["dataset"]["filename"]
+    calibration_option = (
+        "--calibration-tokens" if calibration_filename.endswith(".npy") else "--dataset"
+    )
+    remote_calibration = (
+        f"{root}/inputs/calibration.npy"
+        if calibration_filename.endswith(".npy")
+        else f"{root}/inputs/calibration.txt"
+    )
     argv = [
         f"{root}/engine/.venv/bin/python",
         "-m",
@@ -336,8 +363,8 @@ def stage_a_argv(
         f"{root}/inputs/model",
         "--output",
         f"{root}/artifacts",
-        "--dataset",
-        f"{root}/inputs/calibration.txt",
+        calibration_option,
+        remote_calibration,
         "--nsamples",
         str(quant["nsamples"]),
         "--seqlen",
@@ -425,13 +452,18 @@ uv sync --frozen --python {shlex.quote(engine["python"])}
 uv pip install --python .venv/bin/python accelerate=={shlex.quote(engine["accelerate"])}
 """
     _ssh(args.host, setup)
+    remote_calibration = (
+        f"{root}/inputs/calibration.npy"
+        if corpus.suffix == ".npy"
+        else f"{root}/inputs/calibration.txt"
+    )
     _run(
         [
             "rsync",
             "-a",
             "--checksum",
             str(corpus),
-            f"{args.host}:{root}/inputs/calibration.txt",
+            f"{args.host}:{remote_calibration}",
         ]
     )
     local_model = None
@@ -464,7 +496,7 @@ export HF_XET_HIGH_PERFORMANCE=1
 {shlex.quote(root)}/engine/.venv/bin/hf download {shlex.quote(model["id"])} \
   --revision {shlex.quote(model["revision"])} \
   --local-dir {shlex.quote(root)}/inputs/model
-sha256sum {shlex.quote(root)}/inputs/calibration.txt
+sha256sum {shlex.quote(remote_calibration)}
 test -f {shlex.quote(root)}/inputs/model/model.safetensors.index.json
 """
         _ssh(args.host, download)
@@ -499,11 +531,17 @@ def cmd_start(campaign: Campaign, args: argparse.Namespace) -> int:
         vram_gb=solver_vram_gb(campaign, selected_gpus),
     )
     root = campaign.remote_root.rstrip("/")
+    calibration_filename = campaign.data["dataset"]["filename"]
+    remote_calibration = (
+        f"{root}/inputs/calibration.npy"
+        if calibration_filename.endswith(".npy")
+        else f"{root}/inputs/calibration.txt"
+    )
     command = shlex.join(argv)
     start = f"""
 set -eu
 test -f {shlex.quote(root)}/inputs/model/model.safetensors.index.json
-test -f {shlex.quote(root)}/inputs/calibration.txt
+test -f {shlex.quote(remote_calibration)}
 if [ -f {shlex.quote(root)}/run.pid ] && \
   kill -0 "$(cat {shlex.quote(root)}/run.pid)" 2>/dev/null; then
   echo 'calibration is already running' >&2
@@ -584,6 +622,42 @@ def cmd_fetch(campaign: Campaign, args: argparse.Namespace) -> int:
     return 0
 
 
+def _default_overlay_path(campaign: Campaign) -> Path:
+    hybrid = campaign.data.get("hybrid")
+    if hybrid is None:
+        raise CampaignError("campaign has no hybrid tensor-overlay configuration")
+    filename = hybrid.get("overlay_name", "bf16-overlay.safetensors")
+    return ROOT / "runs" / campaign.name / "overlays" / filename
+
+
+def cmd_fetch_overlay(campaign: Campaign, args: argparse.Namespace) -> int:
+    hybrid = campaign.data.get("hybrid")
+    if hybrid is None:
+        raise CampaignError("campaign has no hybrid tensor-overlay configuration")
+    output = Path(args.output).expanduser() if args.output else _default_overlay_path(campaign)
+    source = hybrid["source"]
+    result = fetch_overlay(source["id"], source["revision"], hybrid["match"], output)
+    receipt = _write_receipt(campaign, "fetch-overlay", result)
+    print(receipt)
+    return 0
+
+
+def cmd_apply_overlay(campaign: Campaign, args: argparse.Namespace) -> int:
+    hybrid = campaign.data.get("hybrid")
+    if hybrid is None:
+        raise CampaignError("campaign has no hybrid tensor-overlay configuration")
+    overlay = Path(args.overlay).expanduser() if args.overlay else _default_overlay_path(campaign)
+    result = apply_overlay(
+        Path(args.model),
+        overlay,
+        hybrid["source_prefix"],
+        hybrid["target_prefix"],
+    )
+    receipt = _write_receipt(campaign, "apply-overlay", result)
+    print(receipt)
+    return 0
+
+
 def cmd_pack(campaign: Campaign, args: argparse.Namespace) -> int:
     engine = Path(args.engine).expanduser().resolve()
     expected_commit = campaign.data["engine"]["commit"]
@@ -611,9 +685,32 @@ def cmd_pack(campaign: Campaign, args: argparse.Namespace) -> int:
         str(calib),
         "--mlx-path",
         str(output),
-        "--verify",
     ]
+    if keep_bf16 := campaign.data.get("packing", {}).get("keep_bf16_regex"):
+        argv.extend(("--router-skip", keep_bf16))
+    if not args.overlay:
+        argv.append("--verify")
     _run(argv, cwd=engine)
+    overlay_result = None
+    if args.overlay:
+        hybrid = campaign.data.get("hybrid")
+        if hybrid is None:
+            raise CampaignError("--overlay requires campaign hybrid configuration")
+        overlay_result = apply_overlay(
+            output,
+            Path(args.overlay),
+            hybrid["source_prefix"],
+            hybrid["target_prefix"],
+        )
+        _run(
+            [
+                str(python),
+                "-c",
+                "import sys; from mlx_gptq.pack import verify; verify(sys.argv[1])",
+                str(output),
+            ],
+            cwd=engine,
+        )
     receipt = _write_receipt(
         campaign,
         "pack",
@@ -621,6 +718,8 @@ def cmd_pack(campaign: Campaign, args: argparse.Namespace) -> int:
             "source_model": model_info,
             "output": str(output),
             "engine_commit": actual_commit,
+            "keep_bf16_regex": campaign.data.get("packing", {}).get("keep_bf16_regex"),
+            "overlay": overlay_result,
         },
     )
     print(receipt)
@@ -647,10 +746,22 @@ def build_parser() -> argparse.ArgumentParser:
     fetch = sub.add_parser("fetch")
     fetch.add_argument("--host", required=True)
 
+    fetch_overlay_parser = sub.add_parser(
+        "fetch-overlay", help="fetch pinned BF16 tensors selected by the campaign"
+    )
+    fetch_overlay_parser.add_argument("--output")
+
+    apply_overlay_parser = sub.add_parser(
+        "apply-overlay", help="apply a fetched BF16 tensor overlay to a packed MLX model"
+    )
+    apply_overlay_parser.add_argument("--model", required=True)
+    apply_overlay_parser.add_argument("--overlay")
+
     pack = sub.add_parser("pack")
     pack.add_argument("--engine", default="~/mlx-gptq")
     pack.add_argument("--model")
     pack.add_argument("--output")
+    pack.add_argument("--overlay")
     return parser
 
 
@@ -665,6 +776,8 @@ def main(argv: list[str] | None = None) -> int:
             "start": cmd_start,
             "status": cmd_status,
             "fetch": cmd_fetch,
+            "fetch-overlay": cmd_fetch_overlay,
+            "apply-overlay": cmd_apply_overlay,
             "pack": cmd_pack,
         }
         return handlers[args.command](campaign, args)
