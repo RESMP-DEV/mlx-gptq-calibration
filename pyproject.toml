@@ -9,6 +9,7 @@ dependencies = []
 
 [project.scripts]
 mlx-gptq-calibration = "mlx_gptq_calibration:main"
+mlx-gptq-logit-trace = "mlx_gptq_calibration.logit_trace:main"
 
 [tool.uv]
 package = true

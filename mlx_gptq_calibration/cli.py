@@ -488,6 +488,8 @@ uv pip install --python .venv/bin/python accelerate=={shlex.quote(engine["accele
             "rsync",
             "-a",
             "--checksum",
+            "--partial",
+            "--inplace",
             str(corpus),
             f"{args.host}:{remote_calibration}",
         ]
@@ -501,11 +503,14 @@ uv pip install --python .venv/bin/python accelerate=={shlex.quote(engine["accele
             raise
 
     if local_model is not None:
+        assert local_model_info is not None
         _run(
             [
                 "rsync",
                 "-a",
                 "--checksum",
+                "--partial",
+                "--inplace",
                 "--exclude",
                 ".cache/",
                 f"{local_model}/",
@@ -514,10 +519,13 @@ uv pip install --python .venv/bin/python accelerate=={shlex.quote(engine["accele
         )
         model_source = {"kind": "local-rsync", **local_model_info}
     else:
-        download = remote_hfd_download_script(campaign) + f"""
+        download = (
+            remote_hfd_download_script(campaign)
+            + f"""
 sha256sum {shlex.quote(remote_calibration)}
 test -f {shlex.quote(model_dir)}/model.safetensors.index.json
 """
+        )
         _ssh(args.host, download)
         model_source = {
             "kind": "remote-hfd-download",

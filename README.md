@@ -66,6 +66,13 @@ See [docs/hybrid-bf16-surgery.md](docs/hybrid-bf16-surgery.md) for the evidence,
 ablation matrix, routing metrics, the pinned Qwen3.6-35B-A3B non-QAT control, and
 the artifact-level audit of JoyAI-LLM Flash as a second genuine QAT MoE.
 
+Long-context evaluation uses the separately isolated
+`agentic_coding_holdout/heldout` config at
+`RESMP-DEV/ptq-calibration-corpus@6ef2bbf949b94192ee8bb78d45a2fc840a10cff5`.
+It contains 2,429,702 Gemma 4 tokens of commit-pinned repository source, tests,
+and documentation with zero normalized 20-word-shingle overlap against the
+calibration text.
+
 ## Quick start
 
 The project itself has no third-party runtime dependency:
@@ -128,6 +135,57 @@ Fetch the pinned parent-BF16 router overlay for the Gemma hybrid:
 ```bash
 uv run mlx-gptq-calibration --campaign "$GEMMA" fetch-overlay
 ```
+
+Run a matched full-vocabulary logit trace after exporting two variants to GGUF:
+
+```bash
+uv run mlx-gptq-logit-trace \
+  --llama-perplexity /path/to/llama-perplexity \
+  --reference /path/to/qat-bf16.gguf \
+  --candidate /path/to/candidate.gguf \
+  --corpus /path/to/agentic-coding-long-context.txt \
+  --output-dir runs/gemma4-logit-trace \
+  --chunks 32 --ctx-size 512 --batch-size 512
+```
+
+The trace records full-vocabulary KL, tail KL, top-1 token agreement, token
+probability deltas, paired perplexity, commands, timings, sizes, and SHA-256
+identities. It recomputes the perplexity ratio from the unclipped reference
+pass because llama.cpp's compact log-probability trace clips its far tail.
+Use `--reuse-reference-logits` to compare additional hybrid variants against
+the same stored reference trace without rerunning the 50 GB BF16 model.
+
+For long contexts, apply
+[`patches/llama-perplexity-tail-logits.patch`](patches/llama-perplexity-tail-logits.patch)
+to the pinned llama.cpp source and score a bounded tail while retaining the
+entire prefix:
+
+```bash
+uv run mlx-gptq-logit-trace \
+  --llama-perplexity /path/to/patched/llama-perplexity \
+  --reference /path/to/qat-bf16.gguf \
+  --candidate /path/to/candidate.gguf \
+  --corpus /path/to/agentic-coding-long-context.txt \
+  --output-dir runs/gemma4-logit-trace-262144 \
+  --ctx-size 262144 --tail-tokens 256 --chunks 1 \
+  --batch-size 4096 --ubatch-size 512 --flash-attn on \
+  --gpu-layers 20 --no-kv-offload
+```
+
+The primary long-context workload is a deterministic repository-context stream
+built from commit-pinned Apache-2.0 source repositories. It includes source,
+tests, and documentation, but excludes SWE-bench Science task prompts,
+verifiers, trajectories, and answer patches:
+
+```bash
+uv run scripts/build_agentic_coding_holdout.py \
+  --calibration-text /path/to/calibration.txt \
+  --workspace /path/to/pinned-repositories \
+  --output-dir /path/to/agentic-coding-holdout
+```
+
+The Ultra-FineWeb-derived stream remains a separately reported general-text
+control. Neither holdout may be used as GPTQ calibration input.
 
 Stage B needs the exact campaign source model on the Mac and an MLX-ready
 environment in the pinned engine checkout. For Qwen3.8:

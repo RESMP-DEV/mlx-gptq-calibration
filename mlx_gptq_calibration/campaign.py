@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -73,6 +74,22 @@ def load_campaign(path: str | Path) -> Campaign:
         raise CampaignError("sample, sequence, and batch sizes must be positive")
     if not data["model"]["layers_attr"].endswith(".layers"):
         raise CampaignError("model.layers_attr must identify the decoder layer collection")
+
+    packing = data.get("packing", {})
+    for field in ("keep_bf16_regex",):
+        if value := packing.get(field):
+            _require_regex(value, f"packing.{field}")
+
+    hybrid = data.get("hybrid")
+    if hybrid is not None:
+        source = hybrid.get("source", {})
+        if not source.get("id"):
+            raise CampaignError("hybrid.source.id is required")
+        _require_sha(source.get("revision"), "hybrid.source.revision")
+        _require_regex(hybrid.get("match"), "hybrid.match")
+        for field in ("source_prefix", "target_prefix"):
+            if not hybrid.get(field):
+                raise CampaignError(f"hybrid.{field} is required")
     return Campaign(campaign_path, data)
 
 
@@ -83,6 +100,15 @@ def _require_sha(value: object, field: str, length: int = 40) -> None:
         int(value, 16)
     except ValueError as exc:
         raise CampaignError(f"{field} must be hexadecimal") from exc
+
+
+def _require_regex(value: object, field: str) -> None:
+    if not isinstance(value, str) or not value:
+        raise CampaignError(f"{field} must be a non-empty regular expression")
+    try:
+        re.compile(value)
+    except re.error as exc:
+        raise CampaignError(f"{field} is not a valid regular expression: {exc}") from exc
 
 
 def sha256_file(path: Path) -> str:
