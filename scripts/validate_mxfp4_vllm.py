@@ -145,6 +145,14 @@ def verify_artifact_identity(model: Path, campaign: Mapping[str, Any]) -> dict[s
     return actual_hashes
 
 
+def verify_receipt_path(model: Path, receipt: Path) -> None:
+    model_resolved = model.resolve()
+    receipt_resolved = receipt.resolve()
+    if receipt_resolved == model_resolved or receipt_resolved.is_relative_to(model_resolved):
+        msg = f"receipt path must not be inside the model directory: {receipt}"
+        raise VllmValidationError(msg)
+
+
 def run_validation(args: argparse.Namespace) -> None:
     campaign = json.loads(args.campaign.read_text())
     versions = package_versions()
@@ -153,6 +161,7 @@ def run_validation(args: argparse.Namespace) -> None:
         msg = f"vLLM version mismatch: expected {expected_vllm}, got {versions['vllm']}"
         raise VllmValidationError(msg)
     verify_model_directory(args.model)
+    verify_receipt_path(args.model, args.receipt)
     artifact_hashes = verify_artifact_identity(args.model, campaign)
     config = json.loads((args.model / "config.json").read_text())
     if not isinstance(config, Mapping):

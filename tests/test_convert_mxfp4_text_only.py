@@ -164,6 +164,17 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
 
             self.assertEqual(returned, verified)
 
+    def test_staged_tokenizer_hashes_are_checked_before_release(self) -> None:
+        hashes = {
+            name: hashlib.sha256(name.encode()).hexdigest()
+            for name in converter.TOKENIZER_FILE_NAMES
+        }
+        converter.verify_staged_tokenizer_hashes(hashes, hashes)
+        wrong = dict(hashes)
+        wrong["tokenizer.json"] = "0" * 64
+        with self.assertRaisesRegex(converter.TextOnlyPackagingError, "staged tokenizer"):
+            converter.verify_staged_tokenizer_hashes(wrong, hashes)
+
 
 if __name__ == "__main__":
     unittest.main()

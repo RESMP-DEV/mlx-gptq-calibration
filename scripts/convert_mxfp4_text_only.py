@@ -136,6 +136,17 @@ def verify_pinned_tokenizer(
     return hashes
 
 
+def verify_staged_tokenizer_hashes(files: Mapping[str, str], expected: Mapping[str, str]) -> None:
+    mismatches = {
+        name: {"expected": expected[name], "staged": files.get(name)}
+        for name in TOKENIZER_FILE_NAMES
+        if files.get(name) != expected[name]
+    }
+    if mismatches:
+        msg = f"staged tokenizer hashes do not match pinned source: {mismatches}"
+        raise TextOnlyPackagingError(msg)
+
+
 def run_conversion(args: argparse.Namespace) -> None:
     from safetensors.torch import load_file, save_file
 
@@ -211,6 +222,7 @@ def run_conversion(args: argparse.Namespace) -> None:
         files = {
             item.name: sha256_file(item) for item in sorted(staging.iterdir()) if item.is_file()
         }
+        verify_staged_tokenizer_hashes(files, tokenizer_files)
         if args.output.exists():
             args.output.rmdir()
         staging.replace(args.output)

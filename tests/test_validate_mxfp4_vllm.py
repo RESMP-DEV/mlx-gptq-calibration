@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -125,6 +126,15 @@ class ValidateMxfp4VllmTests(unittest.TestCase):
         with patch.object(validator, "sha256_file", side_effect=lambda path: wrong[path.name]):
             with self.assertRaisesRegex(validator.VllmValidationError, "artifact hashes"):
                 validator.verify_artifact_identity(Path("/model"), campaign)
+
+    def test_receipt_path_cannot_overwrite_model_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            model = Path(directory) / "model"
+            model.mkdir()
+            validator.verify_receipt_path(model, Path(directory) / "receipt.json")
+            expected = "inside the model directory"
+            with self.assertRaisesRegex(validator.VllmValidationError, expected):
+                validator.verify_receipt_path(model, model / "model.safetensors")
 
 
 if __name__ == "__main__":
