@@ -17,6 +17,47 @@ The first campaign consumes the dataset's default Qwen3.8-tokenized
 available for targets without a published matching matrix; token IDs are never
 reused across tokenizers.
 
+## Compressed-tensors CUDA output
+
+`campaigns/qwen3.8-27b-mxfp4-vllm.json` reuses the same verified source model
+and tokenizer-matched calibration matrix, but emits a standard
+`compressed-tensors` MXFP4A16 artifact with llm-compressor's sequential GPTQ
+pipeline. This is the CUDA/vLLM counterpart to the native MLX artifact:
+
+- llm-compressor `0.14.0` at upstream commit
+  `6e4b96e467c243cb988e87c0fe97b4d51359f983`
+- `GPTQModifier(targets="Linear", scheme="MXFP4A16", ignore=["lm_head"])`
+- group size 32, damping 0.01, static activation order, and seed 17
+- all 256 pinned calibration windows at 2,048 tokens, in original order
+- the text-only `Qwen3_5ForCausalLM` graph; the vision tower and MTP drafter are
+  not calibration targets
+
+On Ampere, vLLM's compressed-tensors MXFP4 scheme selects its Marlin W4A16 path
+(minimum compute capability 8.0). This is weight-only MXFP4, not native W4A4
+FP4 tensor-core execution. `scripts/quantize_mxfp4_vllm.py` verifies the exact
+package versions, calibration hash, source revision receipt, and output hashes
+before writing its run receipt.
+
+The B550 run compressed all 496 eligible text linear tensors in 3,606 seconds.
+The raw llm-compressor output preserves the conditional wrapper and MTP shard;
+`scripts/convert_mxfp4_text_only.py` therefore flattens the text graph to
+`Qwen3_5ForCausalLM`. Its required `--tokenizer-source` restores
+`tokenizer.json`, `tokenizer_config.json`, `vocab.json`, `merges.txt`, and the
+chat template byte-for-byte from the verified source checkpoint. This matters:
+Transformers rewrote the saved tokenizer in the first packaging pass, which
+changed Hindi input such as `नी` from one source token to two tokens. That first
+artifact is superseded and must not be used.
+
+The corrected artifact is
+`Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer` on B550. vLLM
+`0.32.0` resolves it as `Qwen3_5ForCausalLM`, selects
+`MarlinMxFp4LinearKernel`, loads 17.09 GiB of weights on one SM86 RTX 3090 Ti,
+and completes a coherent deterministic generation. The exact hashes, service
+restoration, superseded-tokenizer regression, and non-claims are recorded in
+[`receipts/qwen3.8-27b-mxfp4-vllm/b550-summary.json`](receipts/qwen3.8-27b-mxfp4-vllm/b550-summary.json).
+This is operational acceptance for CUDA/vLLM pilot use, not an accuracy claim;
+matched BF16 perplexity or task parity remains unmeasured.
+
 ## Architecture
 
 ```text

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "name": "qwen3.8-27b-mxfp4-vllm",
+  "model": {
+    "id": "Qwen/Qwen3.8-27B",
+    "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "model_type": "qwen3_5",
+    "weight_bytes": 55562855904,
+    "layers_attr": "model.layers",
+    "checkpoint_model_prefix": "model.language_model",
+    "artifact_layers_prefix": "model.layers"
+  },
+  "dataset": {
+    "id": "RESMP-DEV/ptq-calibration-corpus",
+    "revision": "ffa2e74b9361d573167373140f10dfd30c69a327",
+    "filename": "data/calibration_256x2048.npy",
+    "sha256": "d7dd281b1f1756a6492361e1dfb0c65fed259f8a3d65eabbcb51809b50bd35d7",
+    "tokenizer": "Qwen/Qwen3.8-27B",
+    "tokenizer_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+  },
+  "engine": {
+    "repository": "https://github.com/vllm-project/llm-compressor.git",
+    "commit": "6e4b96e467c243cb988e87c0fe97b4d51359f983",
+    "python": "3.12"
+  },
+  "calibration": {
+    "mode": "mxfp4",
+    "mxfp_algorithm": "gptq",
+    "bits": 4,
+    "group_size": 32,
+    "nsamples": 256,
+    "seqlen": 2048,
+    "batch_size": 4,
+    "dtype": "bfloat16",
+    "damp": 0.01,
+    "actorder": "static",
+    "seed": 17,
+    "sequential_target": "Qwen3_5DecoderLayer"
+  },
+  "runtime": {
+    "llmcompressor": "0.14.0",
+    "compressed_tensors": "0.19.0",
+    "transformers": "5.17.0",
+    "torch": "2.14.0",
+    "causal_conv1d": "1.7.0",
+    "flash_linear_attention": "0.5.2"
+  },
+  "validation": {
+    "engine": "vllm",
+    "vllm": "0.32.0",
+    "scheme": "CompressedTensorsW4A4Mxfp4",
+    "ampere_behavior": "Marlin W4A16",
+    "minimum_compute_capability": 8.0
+  },
+  "compute": {
+    "minimum_vram_mib": 18000,
+    "pipeline": "sequential",
+    "device_strategy": "cpu_model_with_sequential_gpu_onload"
+  },
+  "output": {
+    "format": "compressed-tensors",
+    "scheme": "MXFP4A16",
+    "model_name": "Qwen3.8-27B-compressed-tensors-MXFP4A16-GPTQ",
+    "target_engine": "vLLM"
+  }
+}
