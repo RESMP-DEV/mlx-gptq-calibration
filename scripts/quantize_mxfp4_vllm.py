@@ -26,14 +26,18 @@ def sha256_file(path: Path) -> str:
 
 
 def package_versions() -> dict[str, str]:
-    return {
-        "llmcompressor": importlib.metadata.version("llmcompressor"),
-        "compressed_tensors": importlib.metadata.version("compressed-tensors"),
-        "transformers": importlib.metadata.version("transformers"),
-        "torch": importlib.metadata.version("torch"),
-        "causal_conv1d": importlib.metadata.version("causal-conv1d"),
-        "flash_linear_attention": importlib.metadata.version("flash-linear-attention"),
-    }
+    try:
+        return {
+            "llmcompressor": importlib.metadata.version("llmcompressor"),
+            "compressed_tensors": importlib.metadata.version("compressed-tensors"),
+            "transformers": importlib.metadata.version("transformers"),
+            "torch": importlib.metadata.version("torch"),
+            "causal_conv1d": importlib.metadata.version("causal-conv1d"),
+            "flash_linear_attention": importlib.metadata.version("flash-linear-attention"),
+        }
+    except importlib.metadata.PackageNotFoundError as exc:
+        msg = f"required quantization package is missing: {exc}"
+        raise QuantizationContractError(msg) from exc
 
 
 def llmcompressor_record_sha256() -> str:
@@ -109,6 +113,7 @@ def verify_source_receipt(
         "requested_revision": source_model["requested_revision"] != expected_revision,
         "resolved_revision": source_model["resolved_revision"] != expected_revision,
         "model_path": Path(str(source_model["output"])).resolve() != model_path.resolve(),
+        "failures": bool(source_model["failures"]),
     }
     if any(mismatches.values()):
         msg = f"source model verification receipt does not match campaign: {source_model}"
@@ -210,9 +215,6 @@ def run_quantization(args: argparse.Namespace) -> None:
     if (calibration["bits"], calibration["group_size"]) != (4, 32):
         msg = "this script only implements the pinned MXFP4 bits=4, group_size=32 recipe"
         raise QuantizationContractError(msg)
-    if args.output.exists() and any(args.output.iterdir()):
-        msg = f"output directory is not empty: {args.output}"
-        raise QuantizationContractError(msg)
     runtime = verify_runtime(campaign)
     matrix = load_calibration(
         args.calibration,
@@ -234,6 +236,9 @@ def run_quantization(args: argparse.Namespace) -> None:
             )
         )
         return
+    if args.output.exists() and any(args.output.iterdir()):
+        msg = f"output directory is not empty: {args.output}"
+        raise QuantizationContractError(msg)
     prepare_receipt_path(args.receipt)
     dataset = Dataset.from_dict({"input_ids": matrix.tolist()})
     tokenizer = AutoTokenizer.from_pretrained(args.model, local_files_only=True)
@@ -301,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         run_quantization(args)
-    except (OSError, ValueError) as exc:
+    except (KeyError, OSError, ValueError) as exc:
         print(f"quantization failed: {exc}", file=sys.stderr)
         return 2
     return 0

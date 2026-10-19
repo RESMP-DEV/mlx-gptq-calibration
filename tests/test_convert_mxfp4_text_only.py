@@ -33,6 +33,16 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
         self.assertEqual(flattened["hidden_size"], 5120)
         self.assertEqual(flattened["quantization_config"]["ignore"], ["lm_head"])
 
+    def test_missing_quantization_config_fails_closed(self) -> None:
+        config = {
+            "text_config": {
+                "model_type": "qwen3_5_text",
+                "hidden_size": 5120,
+            }
+        }
+        with self.assertRaisesRegex(converter.TextOnlyPackagingError, "quantization_config"):
+            converter.flatten_config(config)
+
     def test_rewrites_language_keys_and_drops_auxiliary_weights(self) -> None:
         self.assertEqual(
             converter.tensor_key("model.language_model.layers.0.mlp.down_proj.weight_packed"),

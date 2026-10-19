@@ -38,10 +38,14 @@ def flatten_config(config: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(text, Mapping):
         msg = "source config has no text_config"
         raise TextOnlyPackagingError(msg)
+    quantization = config.get("quantization_config")
+    if not isinstance(quantization, Mapping):
+        msg = "source config has no quantization_config"
+        raise TextOnlyPackagingError(msg)
     flattened = dict(text)
     flattened["architectures"] = ["Qwen3_5ForCausalLM"]
     flattened["model_type"] = text.get("model_type", "qwen3_5_text")
-    flattened["quantization_config"] = dict(config["quantization_config"])
+    flattened["quantization_config"] = dict(quantization)
     flattened["quantization_config"]["ignore"] = ["lm_head"]
     return flattened
 
@@ -199,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         run_conversion(args)
-    except (OSError, ValueError) as exc:
+    except (KeyError, OSError, ValueError) as exc:
         print(f"text-only packaging failed: {exc}", file=sys.stderr)
         return 2
     return 0

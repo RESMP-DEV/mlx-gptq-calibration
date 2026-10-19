@@ -1,6 +1,7 @@
 {
   "schema": "mlx-gptq-calibration/qwen3.8-27b-mxfp4-vllm-summary/1",
   "recorded_at": "2026-10-19T05:52:00-07:00",
+  "updated_at": "2026-10-19T06:17:00-07:00",
   "execution_host": {
     "hostname": "b550",
     "gpus": [
@@ -10,8 +11,27 @@
       }
     ],
     "driver_version": "595.99.02",
-    "nvcc_build": "CUDA 12.4",
-    "torch_cuda_build": "cu130"
+    "host_nvcc_build": "CUDA 12.4",
+    "host_torch_cuda": "13.0",
+    "torch_wheel_cuda_tag": "cu130",
+    "toolchain_note": "The host system NVCC is 12.4; both conda/venv PyTorch wheels are cu130 builds reporting torch.version.cuda 13.0. NVCC and the PyTorch wheel CUDA runtime are separate layers and are not required to match."
+  },
+  "environments": {
+    "quantization": {
+      "path": "/home/kearm/envs/qwen38-mxfp4/.venv",
+      "torch": "2.14.0+cu130",
+      "torch_version_cuda": "13.0",
+      "transformers": "5.17.0",
+      "llmcompressor": "0.14.0"
+    },
+    "serving": {
+      "path": "/home/kearm/envs/qwen38-vllm/.venv",
+      "torch": "2.13.0+cu130",
+      "torch_version_cuda": "13.0",
+      "transformers": "5.19.0",
+      "vllm": "0.32.0"
+    },
+    "note": "Quantization and serving intentionally use two separate pinned environments. The compressed-tensors MXFP4A16 artifact is a serialized checkpoint consumed by vLLM; it does not carry the llm-compressor runtime. Version differences across the two envs are by design, not a reproducibility defect, and each receipt records its own environment."
   },
   "source": {
     "repository": "Qwen/Qwen3.8-27B",
@@ -80,11 +100,28 @@
     "source_tokenizer_v2_partial": "/home/kearm/models/Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer-v2; incomplete after a deliberate hash-mismatch failure, do not use"
   },
   "vllm_validation": {
-    "receipt": "vllm-validation-source-tokenizer-v3.json",
+    "receipt": "vllm-validation-source-tokenizer-v3-rerun.json",
     "version": "0.32.0",
-    "quantization_kernel": "MarlinMxFp4LinearKernel",
-    "kernel_mode": "weight-only W4A16; requested activation quantization is ignored",
-    "model_memory_gib": 17.09,
+    "receipt_fields": [
+      "runtime",
+      "GPU",
+      "model identity",
+      "quantization config",
+      "prompt",
+      "output",
+      "token IDs",
+      "finish reason",
+      "generation timing"
+    ],
+    "startup_log_receipt": "vllm-validation-source-tokenizer-v3.log",
+    "startup_log_evidence": {
+      "provenance": "verbatim stderr/stdout captured from the live vLLM process on B550; not emitted by the validator JSON writer",
+      "resolved_architecture_line": "Resolved architecture: Qwen3_5ForCausalLM",
+      "quantization_kernel_line": "Using MarlinMxFp4LinearKernel for MXFP4 GEMM",
+      "kernel_mode_line": "MarlinMxFp4LinearKernel is a weight-only (A16) kernel; the requested activation quantization ... is ignored.",
+      "model_memory_line": "Model loading took 17.09 GiB memory",
+      "kv_cache_line": "Available KV cache memory: 1.65 GiB"
+    },
     "configuration": {
       "tensor_parallel_size": 1,
       "max_model_len": 512,
@@ -95,7 +132,7 @@
     "prompt": "The capital of France is",
     "output": " Paris.\\nThe capital of Germany is Berlin.\\nThe capital of Italy is",
     "finish_reason": "length",
-    "generation_elapsed_seconds": 1.389,
+    "generation_elapsed_seconds": 1.401,
     "exit_code": 0
   },
   "service_restoration": {
@@ -105,8 +142,9 @@
     "health_status": "healthy"
   },
   "local_verification": {
-    "source_base_revision": "bcfb5a3",
-    "source_dirty_during_execution": true,
+    "repository_base_revision": "bcfb5a3",
+    "pipeline_worktree_dirty_during_execution": true,
+    "model_checkpoint_independence": "the model source is the HFD-verified snapshot in source-hfd-verification.json, not this pipeline Git worktree",
     "commands": [
       "uvx ruff check . --fix",
       "uvx ruff format .",
@@ -114,7 +152,7 @@
       "uvx ruff format --check .",
       "uv run python -m unittest discover -s tests"
     ],
-    "unit_tests_passed": 36
+    "unit_tests_passed": 40
   },
   "quality_verdict": {
     "operational": "usable for CUDA/vLLM pilot inference with the source-tokenizer artifact",

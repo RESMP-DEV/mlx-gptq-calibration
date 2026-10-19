@@ -17,11 +17,15 @@ class VllmValidationError(ValueError):
 
 
 def package_versions() -> dict[str, str]:
-    return {
-        "vllm": importlib.metadata.version("vllm"),
-        "torch": importlib.metadata.version("torch"),
-        "transformers": importlib.metadata.version("transformers"),
-    }
+    try:
+        return {
+            "vllm": importlib.metadata.version("vllm"),
+            "torch": importlib.metadata.version("torch"),
+            "transformers": importlib.metadata.version("transformers"),
+        }
+    except importlib.metadata.PackageNotFoundError as exc:
+        msg = f"required vLLM package is missing: {exc}"
+        raise VllmValidationError(msg) from exc
 
 
 def validate_quantization_config(config: Mapping[str, Any]) -> dict[str, Any]:
@@ -142,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         run_validation(args)
-    except (OSError, ValueError) as exc:
+    except (KeyError, OSError, ValueError) as exc:
         print(f"vLLM validation failed: {exc}", file=sys.stderr)
         return 2
     return 0

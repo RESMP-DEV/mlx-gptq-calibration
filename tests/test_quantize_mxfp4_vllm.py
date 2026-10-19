@@ -68,6 +68,12 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
                 with self.assertRaisesRegex(quantize.QuantizationContractError, "RECORD hash"):
                     quantize.verify_runtime(data)
 
+    def test_missing_required_package_fails_closed(self) -> None:
+        error = quantize.importlib.metadata.PackageNotFoundError("llmcompressor")
+        with patch.object(quantize.importlib.metadata, "version", side_effect=error):
+            with self.assertRaisesRegex(quantize.QuantizationContractError, "missing"):
+                quantize.package_versions()
+
     def test_calibration_hash_and_shape_are_required(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "calibration.npy"
@@ -112,6 +118,11 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
 
             receipt["resolved_revision"] = "0" * 40
             expected = "source model verification"
+            with self.assertRaisesRegex(quantize.QuantizationContractError, expected):
+                quantize.verify_source_receipt(receipt, campaign, model_path)
+
+            receipt["output"] = str(model_path)
+            receipt["failures"] = ["checksum mismatch"]
             with self.assertRaisesRegex(quantize.QuantizationContractError, expected):
                 quantize.verify_source_receipt(receipt, campaign, model_path)
 
