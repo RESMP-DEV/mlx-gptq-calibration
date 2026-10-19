@@ -21,7 +21,7 @@
   },
   "schema": "mlx-gptq-calibration/cuda-mxfp4-verify-only/1",
   "source_model": {
-    "content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
+    "pipeline_content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
     "failures": [],
     "output": "/home/kearm/training/models/Qwen3.8-27B-1d4bf0f",
     "repo": "Qwen/Qwen3.8-27B",

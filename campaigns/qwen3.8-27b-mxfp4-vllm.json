@@ -6,7 +6,7 @@
     "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
     "model_type": "qwen3_5",
     "weight_bytes": 55562855904,
-    "content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
+    "pipeline_content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
     "layers_attr": "model.layers",
     "checkpoint_model_prefix": "model.language_model",
     "artifact_layers_prefix": "model.layers",

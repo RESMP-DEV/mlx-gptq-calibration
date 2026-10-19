@@ -127,6 +127,9 @@ def run_validation(args: argparse.Namespace) -> None:
         raise VllmValidationError(msg)
     verify_model_directory(args.model)
     config = json.loads((args.model / "config.json").read_text())
+    if not isinstance(config, Mapping):
+        msg = "model config.json must contain an object"
+        raise VllmValidationError(msg)
     quantization = validate_quantization_config(config, campaign["runtime"]["compressed_tensors"])
     gpus = validate_gpu_state(gpu_state(), campaign["validation"]["minimum_compute_capability"])
     from vllm import LLM, SamplingParams
@@ -209,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         run_validation(args)
-    except (ImportError, KeyError, OSError, TypeError, ValueError) as exc:
+    except (AttributeError, ImportError, KeyError, OSError, TypeError, ValueError) as exc:
         print(f"vLLM validation failed: {exc}", file=sys.stderr)
         return 2
     return 0

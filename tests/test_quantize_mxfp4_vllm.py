@@ -31,7 +31,7 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
             campaign.data["engine"]["commit"], "6e4b96e467c243cb988e87c0fe97b4d51359f983"
         )
         self.assertEqual(campaign.data["runtime"]["llmcompressor"], "0.14.0")
-        self.assertNotEqual(campaign.data["model"].get("content_manifest_sha256"), None)
+        self.assertNotEqual(campaign.data["model"].get("pipeline_content_manifest_sha256"), None)
         self.assertEqual(
             campaign.data["engine"]["commit_scope"],
             "recipe_reference_not_installed_build_provenance",
@@ -150,6 +150,37 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
             quantize.prepare_output_and_receipt_paths(output, receipt)
             self.assertTrue(output.is_dir())
             self.assertFalse(receipt.exists())
+
+    def test_existing_output_file_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "output"
+            output.write_text("not a directory")
+            receipt = root / "receipt.json"
+            with self.assertRaisesRegex(quantize.QuantizationContractError, "not a directory"):
+                quantize.prepare_output_and_receipt_paths(output, receipt)
+
+    def test_quantization_gpu_preflight_enforces_campaign_minimums(self) -> None:
+        campaign = json.loads(CAMPAIGN.read_text())
+        gpu = {
+            "name": "NVIDIA GeForce RTX 3090 Ti",
+            "capability": [8, 6],
+            "total_bytes": campaign["compute"]["minimum_vram_mib"] * 1024 * 1024,
+        }
+        with patch.object(quantize, "gpu_state", return_value=[gpu]):
+            self.assertEqual(quantize.validate_quantization_gpus(campaign), [gpu])
+
+        insufficient = dict(gpu, total_bytes=1024)
+        with patch.object(quantize, "gpu_state", return_value=[insufficient]):
+            with self.assertRaisesRegex(quantize.QuantizationContractError, "insufficient VRAM"):
+                quantize.validate_quantization_gpus(campaign)
+
+        old_gpu = dict(gpu, capability=[7, 5])
+        with patch.object(quantize, "gpu_state", return_value=[old_gpu]):
+            with self.assertRaisesRegex(
+                quantize.QuantizationContractError, "minimum compute capability"
+            ):
+                quantize.validate_quantization_gpus(campaign)
 
     def test_receipt_inside_output_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

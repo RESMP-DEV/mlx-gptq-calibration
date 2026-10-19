@@ -148,6 +148,9 @@ def run_conversion(args: argparse.Namespace) -> None:
     if receipt_resolved == output_resolved or receipt_resolved.is_relative_to(output_resolved):
         msg = f"receipt path must not be inside the output directory: {args.receipt}"
         raise TextOnlyPackagingError(msg)
+    if args.output.exists() and not args.output.is_dir():
+        msg = f"output path is not a directory: {args.output}"
+        raise TextOnlyPackagingError(msg)
     if args.output.exists() and any(args.output.iterdir()):
         msg = f"output directory is not empty: {args.output}"
         raise TextOnlyPackagingError(msg)
@@ -204,9 +207,10 @@ def run_conversion(args: argparse.Namespace) -> None:
             args.output.rmdir()
         staging.replace(args.output)
     receipt = {
-        "schema": "mlx-gptq-calibration/mxfp4-text-only-packaging/1",
+        "schema": "mlx-gptq-calibration/mxfp4-text-only-packaging/2",
         "recorded_at": recorded_at(),
         "campaign": campaign["name"],
+        "supersedes": "text-only-packaging-source-tokenizer-v3.json",
         "source": str(args.source),
         "source_model_sha256": raw_model_sha256,
         "output": str(args.output),

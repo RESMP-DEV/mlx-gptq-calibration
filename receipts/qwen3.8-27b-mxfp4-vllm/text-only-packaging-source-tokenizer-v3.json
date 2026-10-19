@@ -25,6 +25,7 @@
   "scale_tensors": 496,
   "schema": "mlx-gptq-calibration/mxfp4-text-only-packaging/1",
   "source": "/home/kearm/models/Qwen3.8-27B-compressed-tensors-MXFP4A16-GPTQ",
+  "superseded_by": "text-only-packaging-source-tokenizer-v4.json",
   "supersedes": "text-only-packaging-source-tokenizer.json",
   "tensor_count": 1347,
   "tokenizer_files": {

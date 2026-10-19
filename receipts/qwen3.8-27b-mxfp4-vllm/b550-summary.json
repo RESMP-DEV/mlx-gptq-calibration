@@ -57,7 +57,7 @@
     "model_checkpoint_independence": "the model source is the HFD-verified snapshot in source-hfd-verification.json, not this pipeline Git worktree",
     "pipeline_worktree_dirty_during_execution": true,
     "repository_base_revision": "bcfb5a3",
-    "unit_tests_passed": 47
+    "unit_tests_passed": 49
   },
   "non_claims": [
     "This does not prove W4A4 MXFP4 tensor-core execution; Ampere uses Marlin W4A16 weight-only execution.",
@@ -83,6 +83,7 @@
     "elapsed_seconds": 3606.239,
     "format": "compressed-tensors",
     "group_size": 32,
+    "preflight_receipt": "runtime-source-verify-v3.json",
     "raw_model_sha256": "fc5459be218d68b1f2ed59437462ff4aecab40ef74fa81bf46d2cb0a14527e11",
     "raw_output": "/home/kearm/models/Qwen3.8-27B-compressed-tensors-MXFP4A16-GPTQ",
     "receipt": "quantization.json",
@@ -106,8 +107,8 @@
     "state": "active"
   },
   "source": {
-    "content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
     "local_path": "/home/kearm/training/models/Qwen3.8-27B-1d4bf0f",
+    "pipeline_content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
     "repository": "Qwen/Qwen3.8-27B",
     "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
     "verification": "source-hfd-verification.json"
@@ -130,7 +131,7 @@
       "text_unicode_escapes": "\\u0928\\u0940"
     }
   },
-  "updated_at": "2026-10-19T07:19:00-07:00",
+  "updated_at": "2026-10-19T07:29:00-07:00",
   "vllm_validation": {
     "configuration": {
       "enforce_eager": true,

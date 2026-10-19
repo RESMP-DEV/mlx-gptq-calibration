@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import importlib.metadata
 import json
@@ -142,6 +143,9 @@ def prepare_output_and_receipt_paths(output: Path, receipt: Path) -> None:
     if receipt_resolved == output_resolved or receipt_resolved.is_relative_to(output_resolved):
         msg = f"receipt path must not be inside the output directory: {receipt}"
         raise QuantizationContractError(msg)
+    if output.exists() and not output.is_dir():
+        msg = f"output path is not a directory: {output}"
+        raise QuantizationContractError(msg)
     if output.exists() and any(output.iterdir()):
         msg = f"output directory is not empty: {output}"
         raise QuantizationContractError(msg)
@@ -190,6 +194,23 @@ def gpu_state() -> list[dict[str, Any]] | None:
         }
         for index in range(torch.cuda.device_count())
     ]
+
+
+def validate_quantization_gpus(campaign: Mapping[str, Any]) -> list[dict[str, Any]]:
+    gpus = gpu_state()
+    if not gpus:
+        msg = "the cuda-mxfp4-vllm recipe requires a CUDA device"
+        raise QuantizationContractError(msg)
+    minimum_vram_bytes = campaign["compute"]["minimum_vram_mib"] * 1024 * 1024
+    minimum_capability = int(campaign["validation"]["minimum_compute_capability"])
+    for gpu in gpus:
+        if gpu["total_bytes"] < minimum_vram_bytes:
+            msg = f"CUDA device has insufficient VRAM: {gpu}"
+            raise QuantizationContractError(msg)
+        if gpu["capability"][0] < minimum_capability:
+            msg = f"CUDA device is below minimum compute capability: {gpu}"
+            raise QuantizationContractError(msg)
+    return gpus
 
 
 def _write_receipt(
@@ -253,12 +274,13 @@ def run_quantization(args: argparse.Namespace) -> None:
     from llmcompressor.modifiers.gptq import GPTQModifier
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    campaign = json.loads(args.campaign.read_text())
+    campaign = copy.deepcopy(json.loads(args.campaign.read_text()))
     calibration = campaign["calibration"]
     if (calibration["bits"], calibration["group_size"]) != (4, 32):
         msg = "this script only implements the pinned MXFP4 bits=4, group_size=32 recipe"
         raise QuantizationContractError(msg)
     runtime = verify_runtime(campaign)
+    quantization_gpus = validate_quantization_gpus(campaign)
     matrix = load_calibration(
         args.calibration,
         campaign["dataset"]["sha256"],
@@ -266,12 +288,12 @@ def run_quantization(args: argparse.Namespace) -> None:
     )
     source_receipt = json.loads(args.source_receipt.read_text())
     source_model = verify_source_receipt(source_receipt, campaign, args.model)
-    expected_manifest = campaign["model"].get("content_manifest_sha256")
+    expected_manifest = campaign["model"].get("pipeline_content_manifest_sha256")
     actual_manifest = checkpoint_manifest_sha256(args.model)
     if actual_manifest != expected_manifest:
         msg = f"source model content manifest mismatch: {actual_manifest} != {expected_manifest}"
         raise QuantizationContractError(msg)
-    source_model["content_manifest_sha256"] = actual_manifest
+    source_model["pipeline_content_manifest_sha256"] = actual_manifest
     campaign["model"]["verification"] = source_model
     if args.verify_only:
         payload = {
@@ -279,6 +301,7 @@ def run_quantization(args: argparse.Namespace) -> None:
             "recorded_at": recorded_at(),
             "campaign": campaign["name"],
             "runtime": runtime,
+            "gpus": quantization_gpus,
             "calibration_shape": list(matrix.shape),
             "source_model": source_model,
             "non_claims": [
@@ -325,7 +348,6 @@ def run_quantization(args: argparse.Namespace) -> None:
         shuffle_calibration_samples=False,
     )
     model.save_pretrained(args.output, save_compressed=True)
-    tokenizer.save_pretrained(args.output)
     _write_receipt(
         path=args.receipt,
         campaign=campaign,
