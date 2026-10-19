@@ -151,6 +151,14 @@ def run_conversion(args: argparse.Namespace) -> None:
     if args.output.exists() and not args.output.is_dir():
         msg = f"output path is not a directory: {args.output}"
         raise TextOnlyPackagingError(msg)
+    if args.receipt.exists() and args.receipt.is_dir():
+        msg = f"receipt path is a directory: {args.receipt}"
+        raise TextOnlyPackagingError(msg)
+    args.receipt.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=args.receipt.parent, prefix=".receipt-write-probe-"
+    ) as receipt_probe:
+        receipt_probe.write(b"write-probe")
     if args.output.exists() and any(args.output.iterdir()):
         msg = f"output directory is not empty: {args.output}"
         raise TextOnlyPackagingError(msg)

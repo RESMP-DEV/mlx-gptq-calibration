@@ -75,8 +75,6 @@
       "repo": "Qwen/Qwen3.8-27B",
       "requested_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
       "resolved_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
-        "output": "/home/kearm/training/models/Qwen3.8-27B-1d4bf0f",
-        "pipeline_content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
       "status": "verified"
     }
   }

@@ -57,7 +57,7 @@
     "model_checkpoint_independence": "the model source is the HFD-verified snapshot in source-hfd-verification.json, not this pipeline Git worktree",
     "pipeline_worktree_dirty_during_execution": true,
     "repository_base_revision": "bcfb5a3",
-    "unit_tests_passed": 49
+    "unit_tests_passed": 50
   },
   "non_claims": [
     "This does not prove W4A4 MXFP4 tensor-core execution; Ampere uses Marlin W4A16 weight-only execution.",
@@ -83,6 +83,7 @@
     "elapsed_seconds": 3606.239,
     "format": "compressed-tensors",
     "group_size": 32,
+    "post_run_verification": "quantization-post-run-verification.json",
     "preflight_receipt": "runtime-source-verify-v3.json",
     "raw_model_sha256": "fc5459be218d68b1f2ed59437462ff4aecab40ef74fa81bf46d2cb0a14527e11",
     "raw_output": "/home/kearm/models/Qwen3.8-27B-compressed-tensors-MXFP4A16-GPTQ",
@@ -131,8 +132,12 @@
       "text_unicode_escapes": "\\u0928\\u0940"
     }
   },
-  "updated_at": "2026-10-19T07:29:00-07:00",
+  "updated_at": "2026-10-19T07:39:00-07:00",
   "vllm_validation": {
+    "artifact_hashes": {
+      "config.json": "873538762602808f3b895701b479f2f085d917e390d85a9788aa26b796660055",
+      "model.safetensors": "d65f88af3ae9b22962abae6a4c47bef153490cbee237e0be008075f9edaa7fdf"
+    },
     "configuration": {
       "enforce_eager": true,
       "gpu_memory_utilization": 0.82,
@@ -142,10 +147,10 @@
     },
     "exit_code": 0,
     "finish_reason": "length",
-    "generation_elapsed_seconds": 1.369,
+    "generation_elapsed_seconds": 1.322,
     "output": " Paris.\nThe capital of Germany is Berlin.\nThe capital of Italy is",
     "prompt": "The capital of France is",
-    "receipt": "vllm-validation-source-tokenizer-v4.json",
+    "receipt": "vllm-validation-source-tokenizer-v4-hash-bound.json",
     "receipt_fields": [
       "runtime",
       "GPU",
@@ -167,7 +172,7 @@
       "max_tokens": 16,
       "seed": 17
     },
-    "startup_log": "vllm-validation-source-tokenizer-v4.log",
+    "startup_log": "vllm-validation-source-tokenizer-v4-hash-bound.log",
     "startup_log_evidence": {
       "kernel_mode_line": "MarlinMxFp4LinearKernel is a weight-only (A16) kernel; the requested activation quantization ... is ignored.",
       "kv_cache_line": "Available KV cache memory: 1.65 GiB",
@@ -176,7 +181,7 @@
       "quantization_kernel_line": "Using MarlinMxFp4LinearKernel for MXFP4 GEMM",
       "resolved_architecture_line": "Resolved architecture: Qwen3_5ForCausalLM"
     },
-    "startup_log_receipt": "vllm-validation-source-tokenizer-v4.log",
+    "startup_log_receipt": "vllm-validation-source-tokenizer-v4-hash-bound.log",
     "version": "0.32.0"
   }
 }

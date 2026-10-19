@@ -71,6 +71,8 @@
     "text_model_type": "qwen3_5_text",
     "expected_packed_tensor_pairs": 496,
     "raw_model_safetensors_sha256": "fc5459be218d68b1f2ed59437462ff4aecab40ef74fa81bf46d2cb0a14527e11",
+    "text_model_safetensors_sha256": "d65f88af3ae9b22962abae6a4c47bef153490cbee237e0be008075f9edaa7fdf",
+    "text_model_config_sha256": "873538762602808f3b895701b479f2f085d917e390d85a9788aa26b796660055",
     "target_engine": "vLLM",
     "tokenizer_files": {
       "chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",

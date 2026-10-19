@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.metadata
 import json
 import platform
@@ -19,6 +20,14 @@ class VllmValidationError(ValueError):
 
 def recorded_at() -> str:
     return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def package_versions() -> dict[str, str]:
@@ -118,6 +127,24 @@ def verify_model_directory(model: Path) -> None:
             raise VllmValidationError(msg)
 
 
+def verify_artifact_identity(model: Path, campaign: Mapping[str, Any]) -> dict[str, str]:
+    output = campaign["output"]
+    expected_hashes = {
+        "model.safetensors": output["text_model_safetensors_sha256"],
+        "config.json": output["text_model_config_sha256"],
+    }
+    actual_hashes = {name: sha256_file(model / name) for name in expected_hashes}
+    mismatches = {
+        name: {"expected": expected, "actual": actual_hashes[name]}
+        for name, expected in expected_hashes.items()
+        if actual_hashes[name] != expected
+    }
+    if mismatches:
+        msg = f"artifact hashes do not match campaign: {mismatches}"
+        raise VllmValidationError(msg)
+    return actual_hashes
+
+
 def run_validation(args: argparse.Namespace) -> None:
     campaign = json.loads(args.campaign.read_text())
     versions = package_versions()
@@ -126,6 +153,7 @@ def run_validation(args: argparse.Namespace) -> None:
         msg = f"vLLM version mismatch: expected {expected_vllm}, got {versions['vllm']}"
         raise VllmValidationError(msg)
     verify_model_directory(args.model)
+    artifact_hashes = verify_artifact_identity(args.model, campaign)
     config = json.loads((args.model / "config.json").read_text())
     if not isinstance(config, Mapping):
         msg = "model config.json must contain an object"
@@ -161,6 +189,7 @@ def run_validation(args: argparse.Namespace) -> None:
         "gpus": gpus,
         "campaign": campaign["name"],
         "model": str(args.model),
+        "artifact_hashes": artifact_hashes,
         "architectures": config.get("architectures"),
         "quantization_config": quantization,
         "settings": {

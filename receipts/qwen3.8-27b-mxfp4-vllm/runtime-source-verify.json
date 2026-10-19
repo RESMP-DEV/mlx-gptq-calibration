@@ -9,6 +9,8 @@
   "non_claims": [
     "This verify-only run proves preflight identity and runtime pinning; it does not rerun quantization."
   ],
+  "purpose": "initial curated preflight receipt; superseded by machine-written v2 and v3",
+  "receipt_status": "superseded",
   "recorded_at": "2026-10-19T06:02:00-07:00",
   "runtime": {
     "causal_conv1d": "1.7.0",
@@ -21,12 +23,13 @@
   },
   "schema": "mlx-gptq-calibration/cuda-mxfp4-verify-only/1",
   "source_model": {
-    "pipeline_content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
     "failures": [],
     "output": "/home/kearm/training/models/Qwen3.8-27B-1d4bf0f",
+    "pipeline_content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
     "repo": "Qwen/Qwen3.8-27B",
     "requested_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
     "resolved_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
     "status": "verified"
-  }
+  },
+  "superseded_by": "runtime-source-verify-v3.json"
 }

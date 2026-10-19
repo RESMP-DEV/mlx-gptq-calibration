@@ -111,6 +111,21 @@ class ValidateMxfp4VllmTests(unittest.TestCase):
         with self.assertRaisesRegex(validator.VllmValidationError, "unavailable"):
             validator.validate_gpu_state(None, 8)
 
+    def test_artifact_identity_is_campaign_hash_bound(self) -> None:
+        campaign = json.loads(CAMPAIGN.read_text())
+        output = campaign["output"]
+        hashes = {
+            "model.safetensors": output["text_model_safetensors_sha256"],
+            "config.json": output["text_model_config_sha256"],
+        }
+        with patch.object(validator, "sha256_file", side_effect=lambda path: hashes[path.name]):
+            self.assertEqual(validator.verify_artifact_identity(Path("/model"), campaign), hashes)
+
+        wrong = dict(hashes, **{"config.json": "0" * 64})
+        with patch.object(validator, "sha256_file", side_effect=lambda path: wrong[path.name]):
+            with self.assertRaisesRegex(validator.VllmValidationError, "artifact hashes"):
+                validator.verify_artifact_identity(Path("/model"), campaign)
+
 
 if __name__ == "__main__":
     unittest.main()
