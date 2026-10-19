@@ -133,6 +133,7 @@ def verify_artifact_identity(model: Path, campaign: Mapping[str, Any]) -> dict[s
         "model.safetensors": output["text_model_safetensors_sha256"],
         "config.json": output["text_model_config_sha256"],
     }
+    expected_hashes.update(output["tokenizer_files"])
     actual_hashes = {name: sha256_file(model / name) for name in expected_hashes}
     mismatches = {
         name: {"expected": expected, "actual": actual_hashes[name]}

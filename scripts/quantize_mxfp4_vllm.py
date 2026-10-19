@@ -74,7 +74,11 @@ def verify_runtime(campaign: Mapping[str, Any]) -> dict[str, str]:
     if mismatches:
         msg = f"runtime package versions do not match campaign: {mismatches}"
         raise QuantizationContractError(msg)
-    commit_scope = campaign["engine"].get("commit_scope")
+    engine = campaign.get("engine")
+    if not isinstance(engine, Mapping):
+        msg = "campaign is missing the engine section"
+        raise QuantizationContractError(msg)
+    commit_scope = engine.get("commit_scope")
     record_sha256 = llmcompressor_record_sha256()
     if commit_scope != "recipe_reference_not_installed_build_provenance":
         msg = "engine commit must explicitly be scoped as a recipe reference"
@@ -95,6 +99,9 @@ def load_calibration(path: Path, expected_sha256: str, shape: tuple[int, int]) -
     matrix = np.load(path, mmap_mode="r")
     if matrix.shape != shape:
         msg = f"calibration matrix shape mismatch: {matrix.shape} != {shape}"
+        raise QuantizationContractError(msg)
+    if np.isnan(matrix).any():
+        msg = "calibration matrix contains NaN values"
         raise QuantizationContractError(msg)
     if matrix.min() < 0:
         msg = "calibration matrix contains negative token IDs"

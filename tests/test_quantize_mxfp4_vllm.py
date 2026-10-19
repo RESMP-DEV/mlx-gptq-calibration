@@ -69,6 +69,18 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
                 with self.assertRaisesRegex(quantize.QuantizationContractError, "RECORD hash"):
                     quantize.verify_runtime(data)
 
+    def test_missing_engine_section_fails_closed(self) -> None:
+        data = json.loads(CAMPAIGN.read_text())
+        del data["engine"]
+        versions = {
+            name: value
+            for name, value in data["runtime"].items()
+            if name != "llmcompressor_record_sha256"
+        }
+        with patch.object(quantize, "package_versions", return_value=versions):
+            with self.assertRaisesRegex(quantize.QuantizationContractError, "engine section"):
+                quantize.verify_runtime(data)
+
     def test_missing_required_package_fails_closed(self) -> None:
         error = quantize.importlib.metadata.PackageNotFoundError("llmcompressor")
         with patch.object(quantize.importlib.metadata, "version", side_effect=error):
@@ -89,8 +101,11 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
             digest = hashlib.sha256(path.read_bytes()).hexdigest()
             fake_numpy = SimpleNamespace(
                 load=lambda source, mmap_mode: SimpleNamespace(
-                    shape=(2, 4), min=lambda: 0, tolist=lambda: [[0, 1, 2, 3], [4, 5, 6, 7]]
-                )
+                    shape=(2, 4),
+                    min=lambda: 0,
+                    tolist=lambda: [[0, 1, 2, 3], [4, 5, 6, 7]],
+                ),
+                isnan=lambda matrix: SimpleNamespace(any=lambda: False),
             )
             with patch.dict(sys.modules, {"numpy": fake_numpy}):
                 loaded = quantize.load_calibration(path, digest, (2, 4))
@@ -100,6 +115,20 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
                     load=lambda source, mmap_mode: SimpleNamespace(shape=(4, 2))
                 )
                 with patch.dict(sys.modules, {"numpy": wrong_shape}):
+                    quantize.load_calibration(path, digest, (2, 4))
+
+    def test_nan_calibration_tokens_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "calibration.npy"
+            path.write_bytes(b"calibration")
+            digest = hashlib.sha256(b"calibration").hexdigest()
+            matrix = SimpleNamespace(shape=(2, 4), min=lambda: 0)
+            fake_numpy = SimpleNamespace(
+                load=lambda source, mmap_mode: matrix,
+                isnan=lambda value: SimpleNamespace(any=lambda: True),
+            )
+            with patch.dict(sys.modules, {"numpy": fake_numpy}):
+                with self.assertRaisesRegex(quantize.QuantizationContractError, "NaN"):
                     quantize.load_calibration(path, digest, (2, 4))
 
     def test_source_receipt_repository_and_both_revisions_are_required(self) -> None:

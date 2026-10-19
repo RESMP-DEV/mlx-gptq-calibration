@@ -230,7 +230,6 @@ def run_conversion(args: argparse.Namespace) -> None:
         "schema": "mlx-gptq-calibration/mxfp4-text-only-packaging/2",
         "recorded_at": recorded_at(),
         "campaign": campaign["name"],
-        "supersedes": "text-only-packaging-source-tokenizer-v3.json",
         "source": str(args.source),
         "source_model_sha256": raw_model_sha256,
         "output": str(args.output),
@@ -246,6 +245,8 @@ def run_conversion(args: argparse.Namespace) -> None:
             "Live generation and parity remain separate validation gates.",
         ],
     }
+    if args.supersedes:
+        receipt["supersedes"] = args.supersedes
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
     args.receipt.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 
@@ -266,6 +267,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
+    parser.add_argument(
+        "--supersedes",
+        help="filename of the packaging receipt superseded by this run",
+    )
     return parser.parse_args(argv)
 
 
@@ -273,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         run_conversion(args)
-    except (KeyError, OSError, ValueError) as exc:
+    except (ImportError, KeyError, OSError, ValueError) as exc:
         print(f"text-only packaging failed: {exc}", file=sys.stderr)
         return 2
     return 0

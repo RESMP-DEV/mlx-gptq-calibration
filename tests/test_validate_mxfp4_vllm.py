@@ -119,6 +119,7 @@ class ValidateMxfp4VllmTests(unittest.TestCase):
             "model.safetensors": output["text_model_safetensors_sha256"],
             "config.json": output["text_model_config_sha256"],
         }
+        hashes.update(output["tokenizer_files"])
         with patch.object(validator, "sha256_file", side_effect=lambda path: hashes[path.name]):
             self.assertEqual(validator.verify_artifact_identity(Path("/model"), campaign), hashes)
 

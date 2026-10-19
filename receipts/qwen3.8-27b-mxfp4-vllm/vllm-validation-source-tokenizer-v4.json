@@ -61,6 +61,7 @@
     "transform_config": {},
     "version": "0.19.0"
   },
+  "receipt_status": "superseded",
   "recorded_at": "2026-10-19T07:17:44-07:00",
   "runtime": {
     "torch": "2.13.0",
@@ -78,6 +79,7 @@
     "seed": 17
   },
   "stop_reason": null,
+  "superseded_by": "vllm-validation-source-tokenizer-v4-hash-bound.json",
   "token_ids": [
     11751,
     13,
@@ -95,5 +97,6 @@
     314,
     14898,
     369
-  ]
+  ],
+  "validation_lineage": "initial v4 validation without artifact hash receipt; superseded by hash-bound rerun"
 }
