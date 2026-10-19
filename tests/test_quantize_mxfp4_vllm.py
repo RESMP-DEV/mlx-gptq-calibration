@@ -31,6 +31,7 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
             campaign.data["engine"]["commit"], "6e4b96e467c243cb988e87c0fe97b4d51359f983"
         )
         self.assertEqual(campaign.data["runtime"]["llmcompressor"], "0.14.0")
+        self.assertNotEqual(campaign.data["model"].get("content_manifest_sha256"), None)
         self.assertEqual(
             campaign.data["engine"]["commit_scope"],
             "recipe_reference_not_installed_build_provenance",
@@ -137,6 +138,47 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
             receipt = Path(directory) / "new-parent" / "receipt.json"
             quantize.prepare_receipt_path(receipt)
             self.assertTrue(receipt.is_file())
+
+    def test_output_and_receipt_paths_are_prepared_together(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "output"
+            receipt = root / "receipts" / "receipt.json"
+            quantize.prepare_output_and_receipt_paths(output, receipt)
+            self.assertTrue(output.is_dir())
+            self.assertTrue(receipt.is_file())
+
+    def test_receipt_inside_output_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "output"
+            receipt = output / "receipt.json"
+            with self.assertRaisesRegex(quantize.QuantizationContractError, "inside"):
+                quantize.prepare_output_and_receipt_paths(output, receipt)
+
+    def test_populated_output_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "output"
+            output.mkdir()
+            (output / "existing.txt").write_text("do not overwrite")
+            receipt = root / "receipt.json"
+            with self.assertRaisesRegex(quantize.QuantizationContractError, "not empty"):
+                quantize.prepare_output_and_receipt_paths(output, receipt)
+
+    def test_checkpoint_manifest_hashes_files_size_and_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            model = Path(directory)
+            (model / "b.safetensors").write_bytes(b"second")
+            nested = model / "nested"
+            nested.mkdir()
+            (nested / "a.json").write_bytes(b"first")
+
+            manifest = quantize.checkpoint_manifest_sha256(model)
+
+            self.assertEqual(manifest, quantize.checkpoint_manifest_sha256(model))
+            (nested / "a.json").write_bytes(b"changed")
+            self.assertNotEqual(manifest, quantize.checkpoint_manifest_sha256(model))
 
 
 if __name__ == "__main__":

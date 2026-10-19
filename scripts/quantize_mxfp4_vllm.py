@@ -129,6 +129,32 @@ def prepare_receipt_path(path: Path) -> None:
     path.touch()
 
 
+def prepare_output_and_receipt_paths(output: Path, receipt: Path) -> None:
+    output_resolved = output.resolve()
+    receipt_resolved = receipt.resolve()
+    if receipt_resolved == output_resolved or receipt_resolved.is_relative_to(output_resolved):
+        msg = f"receipt path must not be inside the output directory: {receipt}"
+        raise QuantizationContractError(msg)
+    if output.exists() and any(output.iterdir()):
+        msg = f"output directory is not empty: {output}"
+        raise QuantizationContractError(msg)
+    prepare_receipt_path(receipt)
+    output.mkdir(parents=True, exist_ok=True)
+
+
+def checkpoint_manifest_sha256(model_path: Path) -> str:
+    files = sorted(path for path in model_path.rglob("*") if path.is_file())
+    if not files:
+        msg = f"source model directory has no regular files: {model_path}"
+        raise QuantizationContractError(msg)
+    entries = []
+    for path in files:
+        entries.append(
+            f"{sha256_file(path)}\t{path.stat().st_size}\t{path.relative_to(model_path).as_posix()}"
+        )
+    return hashlib.sha256(("\n".join(entries) + "\n").encode()).hexdigest()
+
+
 def output_hashes(path: Path) -> dict[str, str]:
     return {item.name: sha256_file(item) for item in sorted(path.iterdir()) if item.is_file()}
 
@@ -223,6 +249,12 @@ def run_quantization(args: argparse.Namespace) -> None:
     )
     source_receipt = json.loads(args.source_receipt.read_text())
     source_model = verify_source_receipt(source_receipt, campaign, args.model)
+    expected_manifest = campaign["model"].get("content_manifest_sha256")
+    actual_manifest = checkpoint_manifest_sha256(args.model)
+    if actual_manifest != expected_manifest:
+        msg = f"source model content manifest mismatch: {actual_manifest} != {expected_manifest}"
+        raise QuantizationContractError(msg)
+    source_model["content_manifest_sha256"] = actual_manifest
     campaign["model"]["verification"] = source_model
     if args.verify_only:
         print(
@@ -236,10 +268,7 @@ def run_quantization(args: argparse.Namespace) -> None:
             )
         )
         return
-    if args.output.exists() and any(args.output.iterdir()):
-        msg = f"output directory is not empty: {args.output}"
-        raise QuantizationContractError(msg)
-    prepare_receipt_path(args.receipt)
+    prepare_output_and_receipt_paths(args.output, args.receipt)
     dataset = Dataset.from_dict({"input_ids": matrix.tolist()})
     tokenizer = AutoTokenizer.from_pretrained(args.model, local_files_only=True)
     model = AutoModelForCausalLM.from_pretrained(
@@ -258,7 +287,6 @@ def run_quantization(args: argparse.Namespace) -> None:
         dampening_frac=calibration["damp"],
         actorder=calibration["actorder"],
     )
-    args.output.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     oneshot(
         model=model,

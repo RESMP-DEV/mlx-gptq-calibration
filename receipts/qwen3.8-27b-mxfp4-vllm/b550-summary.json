@@ -36,6 +36,7 @@
   "source": {
     "repository": "Qwen/Qwen3.8-27B",
     "revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
     "verification": "source-hfd-verification.json",
     "local_path": "/home/kearm/training/models/Qwen3.8-27B-1d4bf0f"
   },
@@ -152,7 +153,7 @@
       "uvx ruff format --check .",
       "uv run python -m unittest discover -s tests"
     ],
-    "unit_tests_passed": 40
+    "unit_tests_passed": 44
   },
   "quality_verdict": {
     "operational": "usable for CUDA/vLLM pilot inference with the source-tokenizer artifact",
