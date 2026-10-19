@@ -21,6 +21,7 @@
   "engine": {
     "repository": "https://github.com/vllm-project/llm-compressor.git",
     "commit": "6e4b96e467c243cb988e87c0fe97b4d51359f983",
+    "commit_scope": "recipe_reference_not_installed_build_provenance",
     "python": "3.12"
   },
   "calibration": {
@@ -39,6 +40,7 @@
   },
   "runtime": {
     "llmcompressor": "0.14.0",
+    "llmcompressor_record_sha256": "77d00e684fa163de37f78d37f08be491378d8271e98c4f73367d0c449ec70b8c",
     "compressed_tensors": "0.19.0",
     "transformers": "5.17.0",
     "torch": "2.14.0",
@@ -61,6 +63,13 @@
     "format": "compressed-tensors",
     "scheme": "MXFP4A16",
     "model_name": "Qwen3.8-27B-compressed-tensors-MXFP4A16-GPTQ",
-    "target_engine": "vLLM"
+    "target_engine": "vLLM",
+    "tokenizer_files": {
+      "chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+      "merges.txt": "a9d356d7bdf1ef4949e3e748e95b8e10ad9d4e2e838eddc38a0a7b6b94d1db8d",
+      "tokenizer.json": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+      "tokenizer_config.json": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27",
+      "vocab.json": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
+    }
   }
 }

@@ -43,9 +43,14 @@
     "raw_output": "/home/kearm/models/Qwen3.8-27B-compressed-tensors-MXFP4A16-GPTQ",
     "raw_model_sha256": "fc5459be218d68b1f2ed59437462ff4aecab40ef74fa81bf46d2cb0a14527e11"
   },
+  "engine_identity": {
+    "recipe_reference_commit": "6e4b96e467c243cb988e87c0fe97b4d51359f983",
+    "installed_build_claim": "llmcompressor 0.14.0 with installation RECORD SHA-256 77d00e684fa163de37f78d37f08be491378d8271e98c4f73367d0c449ec70b8c",
+    "record_hash_measurement": "measured from the live B550 environment after quantization; the historical quantization receipt predates this field"
+  },
   "recommended_artifact": {
-    "receipt": "text-only-packaging-source-tokenizer.json",
-    "path": "/home/kearm/models/Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer",
+    "receipt": "text-only-packaging-source-tokenizer-v3.json",
+    "path": "/home/kearm/models/Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer-v3",
     "architecture": "Qwen3_5ForCausalLM",
     "model_safetensors_bytes": 18027280824,
     "model_sha256": "d65f88af3ae9b22962abae6a4c47bef153490cbee237e0be008075f9edaa7fdf",
@@ -70,8 +75,12 @@
       ]
     }
   },
+  "other_non_release_directories": {
+    "source_tokenizer_v1": "/home/kearm/models/Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer; superseded by the campaign-hash-bound v3 packaging pass",
+    "source_tokenizer_v2_partial": "/home/kearm/models/Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer-v2; incomplete after a deliberate hash-mismatch failure, do not use"
+  },
   "vllm_validation": {
-    "receipt": "vllm-validation-source-tokenizer.json",
+    "receipt": "vllm-validation-source-tokenizer-v3.json",
     "version": "0.32.0",
     "quantization_kernel": "MarlinMxFp4LinearKernel",
     "kernel_mode": "weight-only W4A16; requested activation quantization is ignored",
@@ -86,7 +95,7 @@
     "prompt": "The capital of France is",
     "output": " Paris.\\nThe capital of Germany is Berlin.\\nThe capital of Italy is",
     "finish_reason": "length",
-    "generation_elapsed_seconds": 1.376,
+    "generation_elapsed_seconds": 1.389,
     "exit_code": 0
   },
   "service_restoration": {
@@ -105,7 +114,7 @@
       "uvx ruff format --check .",
       "uv run python -m unittest discover -s tests"
     ],
-    "unit_tests_passed": 32
+    "unit_tests_passed": 36
   },
   "quality_verdict": {
     "operational": "usable for CUDA/vLLM pilot inference with the source-tokenizer artifact",

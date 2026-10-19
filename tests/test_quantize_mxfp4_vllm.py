@@ -31,20 +31,42 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
             campaign.data["engine"]["commit"], "6e4b96e467c243cb988e87c0fe97b4d51359f983"
         )
         self.assertEqual(campaign.data["runtime"]["llmcompressor"], "0.14.0")
+        self.assertEqual(
+            campaign.data["engine"]["commit_scope"],
+            "recipe_reference_not_installed_build_provenance",
+        )
         self.assertEqual(campaign.data["validation"]["vllm"], "0.32.0")
         self.assertEqual(campaign.data["validation"]["ampere_behavior"], "Marlin W4A16")
 
     def test_runtime_mismatch_fails_closed(self) -> None:
         data = json.loads(CAMPAIGN.read_text())
-        versions = dict(data["runtime"])
-        with patch.object(quantize, "package_versions", return_value=versions):
+        versions = {
+            name: value
+            for name, value in data["runtime"].items()
+            if name != "llmcompressor_record_sha256"
+        }
+        record_hash = data["runtime"]["llmcompressor_record_sha256"]
+        with (
+            patch.object(quantize, "package_versions", return_value=versions),
+            patch.object(quantize, "llmcompressor_record_sha256", return_value=record_hash),
+        ):
             verified = quantize.verify_runtime(data)
         self.assertEqual(verified["llmcompressor"], "0.14.0")
+        self.assertEqual(verified["llmcompressor_record_sha256"], record_hash)
 
         versions["transformers"] = "0.0.0"
-        with patch.object(quantize, "package_versions", return_value=versions):
+        with (
+            patch.object(quantize, "package_versions", return_value=versions),
+            patch.object(quantize, "llmcompressor_record_sha256", return_value=record_hash),
+        ):
             with self.assertRaisesRegex(quantize.QuantizationContractError, "runtime package"):
                 quantize.verify_runtime(data)
+
+        versions["transformers"] = data["runtime"]["transformers"]
+        with patch.object(quantize, "package_versions", return_value=versions):
+            with patch.object(quantize, "llmcompressor_record_sha256", return_value="0" * 64):
+                with self.assertRaisesRegex(quantize.QuantizationContractError, "RECORD hash"):
+                    quantize.verify_runtime(data)
 
     def test_calibration_hash_and_shape_are_required(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -74,21 +96,36 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
                     quantize.load_calibration(path, digest, (2, 4))
 
     def test_source_receipt_repository_and_both_revisions_are_required(self) -> None:
-        campaign = json.loads(CAMPAIGN.read_text())
-        revision = campaign["model"]["revision"]
-        receipt = {
-            "status": "verified",
-            "repo": campaign["model"]["id"],
-            "requested_revision": revision,
-            "resolved_revision": revision,
-            "failures": [],
-        }
-        self.assertEqual(quantize.verify_source_receipt(receipt, campaign), receipt)
+        with tempfile.TemporaryDirectory() as directory:
+            model_path = Path(directory) / "source-model"
+            campaign = json.loads(CAMPAIGN.read_text())
+            revision = campaign["model"]["revision"]
+            receipt = {
+                "status": "verified",
+                "repo": campaign["model"]["id"],
+                "requested_revision": revision,
+                "resolved_revision": revision,
+                "output": str(model_path),
+                "failures": [],
+            }
+            self.assertEqual(quantize.verify_source_receipt(receipt, campaign, model_path), receipt)
 
-        receipt["resolved_revision"] = "0" * 40
-        expected = "source model verification"
-        with self.assertRaisesRegex(quantize.QuantizationContractError, expected):
-            quantize.verify_source_receipt(receipt, campaign)
+            receipt["resolved_revision"] = "0" * 40
+            expected = "source model verification"
+            with self.assertRaisesRegex(quantize.QuantizationContractError, expected):
+                quantize.verify_source_receipt(receipt, campaign, model_path)
+
+            receipt["resolved_revision"] = revision
+            receipt["output"] = str(Path(directory) / "different-model")
+            expected = "source model verification"
+            with self.assertRaisesRegex(quantize.QuantizationContractError, expected):
+                quantize.verify_source_receipt(receipt, campaign, model_path)
+
+    def test_receipt_parent_is_created_and_made_writable_before_long_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            receipt = Path(directory) / "new-parent" / "receipt.json"
+            quantize.prepare_receipt_path(receipt)
+            self.assertTrue(receipt.is_file())
 
 
 if __name__ == "__main__":

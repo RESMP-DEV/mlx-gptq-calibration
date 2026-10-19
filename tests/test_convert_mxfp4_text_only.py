@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import tempfile
 import unittest
@@ -43,7 +44,29 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
 
     def test_source_index_must_have_main_and_mtp_shards(self) -> None:
         with self.assertRaisesRegex(converter.TextOnlyPackagingError, "main and MTP"):
-            converter.verify_source_index({"weight_map": {"a": "model.safetensors"}})
+            converter.verify_source_index({"weight_map": {"a": "model.safetensors"}}, set())
+
+    def test_source_index_rejects_text_tensor_in_unread_shard(self) -> None:
+        index = {
+            "weight_map": {
+                "lm_head.weight": "model.safetensors",
+                "model.language_model.embed_tokens.weight": "model_mtp.safetensors",
+                "mtp.fc.weight": "model_mtp.safetensors",
+            }
+        }
+        loaded = {"lm_head.weight", "model.language_model.embed_tokens.weight"}
+        with self.assertRaisesRegex(converter.TextOnlyPackagingError, "wrong_shard"):
+            converter.verify_source_index(index, loaded)
+
+    def test_source_index_accepts_complete_main_shard_text_tensors(self) -> None:
+        index = {
+            "weight_map": {
+                "model.language_model.embed_tokens.weight": "model.safetensors",
+                "mtp.fc.weight": "model_mtp.safetensors",
+            }
+        }
+        loaded = {"model.language_model.embed_tokens.weight"}
+        converter.verify_source_index(index, loaded)
 
     def test_restores_pinned_tokenizer_byte_for_byte(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -54,8 +77,12 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
             output.mkdir()
             for name in converter.TOKENIZER_FILE_NAMES:
                 (tokenizer_source / name).write_bytes(f"pinned-{name}".encode())
+            expected = {
+                name: hashlib.sha256(f"pinned-{name}".encode()).hexdigest()
+                for name in converter.TOKENIZER_FILE_NAMES
+            }
 
-            hashes = converter.copy_pinned_tokenizer(tokenizer_source, output)
+            hashes = converter.copy_pinned_tokenizer(tokenizer_source, output, expected)
 
             self.assertEqual(set(hashes), set(converter.TOKENIZER_FILE_NAMES))
             for name in converter.TOKENIZER_FILE_NAMES:
@@ -71,7 +98,24 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
 
             expected = "pinned tokenizer source is missing"
             with self.assertRaisesRegex(converter.TextOnlyPackagingError, expected):
-                converter.copy_pinned_tokenizer(tokenizer_source, output)
+                converter.copy_pinned_tokenizer(tokenizer_source, output, {})
+
+    def test_wrong_pinned_tokenizer_hash_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tokenizer_source = root / "source-checkpoint"
+            output = root / "artifact"
+            tokenizer_source.mkdir()
+            output.mkdir()
+            expected = {}
+            for name in converter.TOKENIZER_FILE_NAMES:
+                content = f"pinned-{name}".encode()
+                (tokenizer_source / name).write_bytes(content)
+                expected[name] = hashlib.sha256(content).hexdigest()
+            expected["tokenizer.json"] = "0" * 64
+
+            with self.assertRaisesRegex(converter.TextOnlyPackagingError, "tokenizer source hash"):
+                converter.copy_pinned_tokenizer(tokenizer_source, output, expected)
 
 
 if __name__ == "__main__":

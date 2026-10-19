@@ -24,8 +24,9 @@ and tokenizer-matched calibration matrix, but emits a standard
 `compressed-tensors` MXFP4A16 artifact with llm-compressor's sequential GPTQ
 pipeline. This is the CUDA/vLLM counterpart to the native MLX artifact:
 
-- llm-compressor `0.14.0` at upstream commit
-  `6e4b96e467c243cb988e87c0fe97b4d51359f983`
+- llm-compressor `0.14.0`; the upstream commit is a recipe reference, while the
+  installed distribution is independently pinned by its installation `RECORD`
+  SHA-256
 - `GPTQModifier(targets="Linear", scheme="MXFP4A16", ignore=["lm_head"])`
 - group size 32, damping 0.01, static activation order, and seed 17
 - all 256 pinned calibration windows at 2,048 tokens, in original order
@@ -48,8 +49,8 @@ Transformers rewrote the saved tokenizer in the first packaging pass, which
 changed Hindi input such as `नी` from one source token to two tokens. That first
 artifact is superseded and must not be used.
 
-The corrected artifact is
-`Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer` on B550. vLLM
+The corrected and receipt-bound artifact is
+`Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer-v3` on B550. vLLM
 `0.32.0` resolves it as `Qwen3_5ForCausalLM`, selects
 `MarlinMxFp4LinearKernel`, loads 17.09 GiB of weights on one SM86 RTX 3090 Ti,
 and completes a coherent deterministic generation. The exact hashes, service

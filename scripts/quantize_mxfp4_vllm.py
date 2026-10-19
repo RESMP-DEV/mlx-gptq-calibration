@@ -36,18 +36,42 @@ def package_versions() -> dict[str, str]:
     }
 
 
+def llmcompressor_record_sha256() -> str:
+    distribution = importlib.metadata.distribution("llmcompressor")
+    records = [file for file in distribution.files or [] if file.name == "RECORD"]
+    if len(records) != 1:
+        msg = f"cannot identify one llmcompressor installation RECORD: {records}"
+        raise QuantizationContractError(msg)
+    record_path = Path(str(distribution.locate_file(records[0])))
+    if not record_path.is_file():
+        msg = f"llmcompressor installation RECORD is missing: {record_path}"
+        raise QuantizationContractError(msg)
+    return sha256_file(record_path)
+
+
 def verify_runtime(campaign: Mapping[str, Any]) -> dict[str, str]:
     actual = package_versions()
     expected = campaign["runtime"]
+    expected_versions = {
+        name: value for name, value in expected.items() if name != "llmcompressor_record_sha256"
+    }
     mismatches = {
-        name: {"expected": expected[name], "actual": actual[name]}
-        for name in expected
-        if actual[name] != expected[name]
+        name: {"expected": expected_versions[name], "actual": actual[name]}
+        for name in expected_versions
+        if actual[name] != expected_versions[name]
     }
     if mismatches:
         msg = f"runtime package versions do not match campaign: {mismatches}"
         raise QuantizationContractError(msg)
-    return actual
+    commit_scope = campaign["engine"].get("commit_scope")
+    record_sha256 = llmcompressor_record_sha256()
+    if commit_scope != "recipe_reference_not_installed_build_provenance":
+        msg = "engine commit must explicitly be scoped as a recipe reference"
+        raise QuantizationContractError(msg)
+    if record_sha256 != expected["llmcompressor_record_sha256"]:
+        msg = "llmcompressor installation RECORD hash does not match campaign"
+        raise QuantizationContractError(msg)
+    return {**actual, "llmcompressor_record_sha256": record_sha256}
 
 
 def load_calibration(path: Path, expected_sha256: str, shape: tuple[int, int]) -> Any:
@@ -68,13 +92,14 @@ def load_calibration(path: Path, expected_sha256: str, shape: tuple[int, int]) -
 
 
 def verify_source_receipt(
-    receipt: Mapping[str, Any], campaign: Mapping[str, Any]
+    receipt: Mapping[str, Any], campaign: Mapping[str, Any], model_path: Path
 ) -> dict[str, Any]:
     source_model = {
         "status": receipt.get("status"),
         "repo": receipt.get("repo"),
         "requested_revision": receipt.get("requested_revision"),
         "resolved_revision": receipt.get("resolved_revision"),
+        "output": receipt.get("output"),
         "failures": receipt.get("failures"),
     }
     expected_revision = campaign["model"]["revision"]
@@ -83,11 +108,20 @@ def verify_source_receipt(
         "repo": source_model["repo"] != campaign["model"]["id"],
         "requested_revision": source_model["requested_revision"] != expected_revision,
         "resolved_revision": source_model["resolved_revision"] != expected_revision,
+        "model_path": Path(str(source_model["output"])).resolve() != model_path.resolve(),
     }
     if any(mismatches.values()):
         msg = f"source model verification receipt does not match campaign: {source_model}"
         raise QuantizationContractError(msg)
     return source_model
+
+
+def prepare_receipt_path(path: Path) -> None:
+    if path.exists() and path.is_dir():
+        msg = f"receipt path is a directory: {path}"
+        raise QuantizationContractError(msg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch()
 
 
 def output_hashes(path: Path) -> dict[str, str]:
@@ -118,6 +152,7 @@ def _write_receipt(
     calibration_path: Path,
     output_path: Path,
     elapsed_seconds: float,
+    runtime: dict[str, str],
 ) -> None:
     receipt = {
         "schema": "mlx-gptq-calibration/cuda-mxfp4-vllm/1",
@@ -138,7 +173,7 @@ def _write_receipt(
             "sha256": campaign["dataset"]["sha256"],
             "shape": [campaign["calibration"]["nsamples"], campaign["calibration"]["seqlen"]],
         },
-        "runtime": package_versions(),
+        "runtime": runtime,
         "gpus": gpu_state(),
         "model_class": campaign["model"].get("model_class"),
         "recipe": {
@@ -178,20 +213,20 @@ def run_quantization(args: argparse.Namespace) -> None:
     if args.output.exists() and any(args.output.iterdir()):
         msg = f"output directory is not empty: {args.output}"
         raise QuantizationContractError(msg)
-    verify_runtime(campaign)
+    runtime = verify_runtime(campaign)
     matrix = load_calibration(
         args.calibration,
         campaign["dataset"]["sha256"],
         (calibration["nsamples"], calibration["seqlen"]),
     )
     source_receipt = json.loads(args.source_receipt.read_text())
-    source_model = verify_source_receipt(source_receipt, campaign)
+    source_model = verify_source_receipt(source_receipt, campaign, args.model)
     campaign["model"]["verification"] = source_model
     if args.verify_only:
         print(
             json.dumps(
                 {
-                    "runtime": package_versions(),
+                    "runtime": runtime,
                     "calibration_shape": list(matrix.shape),
                     "source_model": source_model,
                 },
@@ -199,6 +234,7 @@ def run_quantization(args: argparse.Namespace) -> None:
             )
         )
         return
+    prepare_receipt_path(args.receipt)
     dataset = Dataset.from_dict({"input_ids": matrix.tolist()})
     tokenizer = AutoTokenizer.from_pretrained(args.model, local_files_only=True)
     model = AutoModelForCausalLM.from_pretrained(
@@ -241,6 +277,7 @@ def run_quantization(args: argparse.Namespace) -> None:
         calibration_path=args.calibration,
         output_path=args.output,
         elapsed_seconds=time.perf_counter() - started,
+        runtime=runtime,
     )
 
 
