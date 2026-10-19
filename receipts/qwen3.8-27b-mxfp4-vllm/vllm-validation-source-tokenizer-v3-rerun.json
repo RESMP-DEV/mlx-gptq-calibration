@@ -2,6 +2,7 @@
   "architectures": [
     "Qwen3_5ForCausalLM"
   ],
+  "campaign": "qwen3.8-27b-mxfp4-vllm",
   "finish_reason": "length",
   "generation_elapsed_seconds": 1.401,
   "gpus": [
@@ -67,6 +68,7 @@
     "vllm": "0.32.0"
   },
   "schema": "mlx-gptq-calibration/vllm-mxfp4-validation/1",
+  "startup_log": "vllm-validation-source-tokenizer-v3.log",
   "stop_reason": null,
   "token_ids": [
     11751,
@@ -85,5 +87,6 @@
     314,
     14898,
     369
-  ]
+  ],
+  "validation_lineage": "rerun of v3 artifact with machine-captured startup log"
 }

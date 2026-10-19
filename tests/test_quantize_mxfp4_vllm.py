@@ -122,12 +122,14 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
             with self.assertRaisesRegex(quantize.QuantizationContractError, expected):
                 quantize.verify_source_receipt(receipt, campaign, model_path)
 
+            receipt["resolved_revision"] = revision
             receipt["output"] = str(model_path)
             receipt["failures"] = ["checksum mismatch"]
             with self.assertRaisesRegex(quantize.QuantizationContractError, expected):
                 quantize.verify_source_receipt(receipt, campaign, model_path)
 
             receipt["resolved_revision"] = revision
+            receipt["failures"] = []
             receipt["output"] = str(Path(directory) / "different-model")
             expected = "source model verification"
             with self.assertRaisesRegex(quantize.QuantizationContractError, expected):
@@ -137,7 +139,8 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             receipt = Path(directory) / "new-parent" / "receipt.json"
             quantize.prepare_receipt_path(receipt)
-            self.assertTrue(receipt.is_file())
+            self.assertTrue(receipt.parent.is_dir())
+            self.assertFalse(receipt.exists())
 
     def test_output_and_receipt_paths_are_prepared_together(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -146,7 +149,7 @@ class QuantizeMxfp4VllmTests(unittest.TestCase):
             receipt = root / "receipts" / "receipt.json"
             quantize.prepare_output_and_receipt_paths(output, receipt)
             self.assertTrue(output.is_dir())
-            self.assertTrue(receipt.is_file())
+            self.assertFalse(receipt.exists())
 
     def test_receipt_inside_output_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

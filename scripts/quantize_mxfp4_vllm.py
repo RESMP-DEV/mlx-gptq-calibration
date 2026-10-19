@@ -7,14 +7,20 @@ import importlib.metadata
 import json
 import platform
 import sys
+import tempfile
 import time
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 
 class QuantizationContractError(ValueError):
     pass
+
+
+def recorded_at() -> str:
+    return datetime.now(UTC).astimezone().isoformat(timespec="seconds")
 
 
 def sha256_file(path: Path) -> str:
@@ -126,7 +132,8 @@ def prepare_receipt_path(path: Path) -> None:
         msg = f"receipt path is a directory: {path}"
         raise QuantizationContractError(msg)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.touch()
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".receipt-write-probe-") as probe:
+        probe.write(b"write-probe")
 
 
 def prepare_output_and_receipt_paths(output: Path, receipt: Path) -> None:
@@ -153,6 +160,16 @@ def checkpoint_manifest_sha256(model_path: Path) -> str:
             f"{sha256_file(path)}\t{path.stat().st_size}\t{path.relative_to(model_path).as_posix()}"
         )
     return hashlib.sha256(("\n".join(entries) + "\n").encode()).hexdigest()
+
+
+def resolve_torch_dtype(torch: Any, name: str) -> Any:
+    if name == "auto":
+        return name
+    value = getattr(torch, name, None)
+    if not isinstance(value, torch.dtype):
+        msg = f"invalid torch dtype in campaign: {name}"
+        raise QuantizationContractError(msg)
+    return value
 
 
 def output_hashes(path: Path) -> dict[str, str]:
@@ -187,7 +204,7 @@ def _write_receipt(
 ) -> None:
     receipt = {
         "schema": "mlx-gptq-calibration/cuda-mxfp4-vllm/1",
-        "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "recorded_at": recorded_at(),
         "platform": platform.platform(),
         "python": sys.version.split()[0],
         "campaign": campaign["name"],
@@ -257,25 +274,31 @@ def run_quantization(args: argparse.Namespace) -> None:
     source_model["content_manifest_sha256"] = actual_manifest
     campaign["model"]["verification"] = source_model
     if args.verify_only:
-        print(
-            json.dumps(
-                {
-                    "runtime": runtime,
-                    "calibration_shape": list(matrix.shape),
-                    "source_model": source_model,
-                },
-                sort_keys=True,
-            )
-        )
+        payload = {
+            "schema": "mlx-gptq-calibration/cuda-mxfp4-verify-only/1",
+            "recorded_at": recorded_at(),
+            "campaign": campaign["name"],
+            "runtime": runtime,
+            "calibration_shape": list(matrix.shape),
+            "source_model": source_model,
+            "non_claims": [
+                "This verify-only run proves preflight identity and runtime pinning; "
+                "it does not rerun quantization."
+            ],
+        }
+        print(json.dumps(payload, sort_keys=True))
+        args.receipt.parent.mkdir(parents=True, exist_ok=True)
+        args.receipt.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
         return
     prepare_output_and_receipt_paths(args.output, args.receipt)
     dataset = Dataset.from_dict({"input_ids": matrix.tolist()})
+    model_dtype = resolve_torch_dtype(torch, calibration["dtype"])
     tokenizer = AutoTokenizer.from_pretrained(args.model, local_files_only=True)
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
         local_files_only=True,
-        trust_remote_code=True,
-        dtype=getattr(torch, calibration["dtype"]),
+        trust_remote_code=False,
+        dtype=model_dtype,
         low_cpu_mem_usage=True,
     )
     campaign["model"]["model_class"] = type(model).__name__
@@ -334,7 +357,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         run_quantization(args)
-    except (KeyError, OSError, ValueError) as exc:
+    except (AttributeError, ImportError, KeyError, OSError, TypeError, ValueError) as exc:
         print(f"quantization failed: {exc}", file=sys.stderr)
         return 2
     return 0

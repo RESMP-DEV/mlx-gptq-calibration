@@ -10,6 +10,7 @@
   "repo_type": "model",
   "requested_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
   "resolved_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+  "schema": "mlx-gptq-calibration/hfd-source-verification/1",
   "status": "verified",
   "total_bytes": 55586114863,
   "verified_at": "2026-10-18T20:13:57.338692+00:00"

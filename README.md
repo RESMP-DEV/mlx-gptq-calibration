@@ -49,8 +49,8 @@ Transformers rewrote the saved tokenizer in the first packaging pass, which
 changed Hindi input such as `नी` from one source token to two tokens. That first
 artifact is superseded and must not be used.
 
-The corrected and receipt-bound artifact is
-`Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer-v3` on B550. vLLM
+The corrected, atomic, campaign-hash-bound artifact is
+`Qwen3.8-27B-vLLM-MXFP4A16-GPTQ-text-only-source-tokenizer-v4` on B550. vLLM
 `0.32.0` resolves it as `Qwen3_5ForCausalLM`, selects
 `MarlinMxFp4LinearKernel`, loads 17.09 GiB of weights on one SM86 RTX 3090 Ti,
 and completes a coherent deterministic generation. The exact hashes, service

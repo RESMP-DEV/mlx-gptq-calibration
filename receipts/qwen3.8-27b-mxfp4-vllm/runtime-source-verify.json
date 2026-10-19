@@ -1,8 +1,15 @@
 {
-  "schema": "mlx-gptq-calibration/cuda-mxfp4-verify-only/1",
-  "recorded_at": "2026-10-19T06:02:00-07:00",
-  "execution_host": "b550",
+  "calibration_shape": [
+    256,
+    2048
+  ],
   "campaign": "qwen3.8-27b-mxfp4-vllm",
+  "command_mode": "--verify-only against the campaign, live calibration matrix, live model bytes, live model path, and HFD receipt",
+  "execution_host": "b550",
+  "non_claims": [
+    "This verify-only run proves preflight identity and runtime pinning; it does not rerun quantization."
+  ],
+  "recorded_at": "2026-10-19T06:02:00-07:00",
   "runtime": {
     "causal_conv1d": "1.7.0",
     "compressed_tensors": "0.19.0",
@@ -12,10 +19,7 @@
     "torch": "2.14.0",
     "transformers": "5.17.0"
   },
-  "calibration_shape": [
-    256,
-    2048
-  ],
+  "schema": "mlx-gptq-calibration/cuda-mxfp4-verify-only/1",
   "source_model": {
     "content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
     "failures": [],
@@ -24,9 +28,5 @@
     "requested_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
     "resolved_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
     "status": "verified"
-  },
-  "command_mode": "--verify-only against the campaign, live calibration matrix, live model bytes, live model path, and HFD receipt",
-  "non_claims": [
-    "This verify-only run proves preflight identity and runtime pinning; it does not rerun quantization."
-  ]
+  }
 }

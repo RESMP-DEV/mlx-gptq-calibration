@@ -42,6 +42,11 @@
     "path": "/home/kearm/models/Qwen3.8-27B-compressed-tensors-MXFP4A16-GPTQ"
   },
   "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+  "post_run_runtime_verification": {
+    "llmcompressor_record_sha256": "77d00e684fa163de37f78d37f08be491378d8271e98c4f73367d0c449ec70b8c",
+    "measured_at": "2026-10-19T06:02:00-07:00",
+    "note": "added after the live B550 environment measurement; the original run predated this contract field"
+  },
   "python": "3.12.14",
   "recipe": {
     "actorder": "static",

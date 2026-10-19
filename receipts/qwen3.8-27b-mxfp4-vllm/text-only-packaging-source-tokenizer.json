@@ -2,6 +2,7 @@
   "architectures": [
     "Qwen3_5ForCausalLM"
   ],
+  "campaign": "qwen3.8-27b-mxfp4-vllm",
   "non_claims": [
     "This packaging pass changes config/key layout only; it does not alter packed values.",
     "Live generation and parity remain separate validation gates."
@@ -24,6 +25,8 @@
   "scale_tensors": 496,
   "schema": "mlx-gptq-calibration/mxfp4-text-only-packaging/1",
   "source": "/home/kearm/models/Qwen3.8-27B-compressed-tensors-MXFP4A16-GPTQ",
+  "superseded_by": "text-only-packaging-source-tokenizer-v3.json",
+  "supersession_reason": "later pass binds campaign tokenizer hashes and indexed tensor layout",
   "tensor_count": 1347,
   "tokenizer_files": {
     "chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",

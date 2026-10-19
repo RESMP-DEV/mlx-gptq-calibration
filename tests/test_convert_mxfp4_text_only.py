@@ -27,7 +27,7 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
                 "ignore": ["lm_head", "re:^mtp.*"],
             },
         }
-        flattened = converter.flatten_config(config)
+        flattened = converter.flatten_config(config, "Qwen3_5ForCausalLM", "qwen3_5_text")
         self.assertEqual(flattened["architectures"], ["Qwen3_5ForCausalLM"])
         self.assertEqual(flattened["model_type"], "qwen3_5_text")
         self.assertEqual(flattened["hidden_size"], 5120)
@@ -41,20 +41,40 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
             }
         }
         with self.assertRaisesRegex(converter.TextOnlyPackagingError, "quantization_config"):
-            converter.flatten_config(config)
+            converter.flatten_config(config, "Qwen3_5ForCausalLM", "qwen3_5_text")
 
     def test_rewrites_language_keys_and_drops_auxiliary_weights(self) -> None:
+        checkpoint_prefix = "model.language_model"
+        artifact_prefix = "model."
         self.assertEqual(
-            converter.tensor_key("model.language_model.layers.0.mlp.down_proj.weight_packed"),
+            converter.tensor_key(
+                "model.language_model.layers.0.mlp.down_proj.weight_packed",
+                checkpoint_prefix,
+                artifact_prefix,
+            ),
             "model.layers.0.mlp.down_proj.weight_packed",
         )
-        self.assertEqual(converter.tensor_key("lm_head.weight"), "lm_head.weight")
-        self.assertIsNone(converter.tensor_key("mtp.fc.weight"))
-        self.assertIsNone(converter.tensor_key("model.visual.blocks.0.mlp.linear_fc1.weight"))
+        self.assertEqual(
+            converter.tensor_key("lm_head.weight", checkpoint_prefix, artifact_prefix),
+            "lm_head.weight",
+        )
+        self.assertIsNone(converter.tensor_key("mtp.fc.weight", checkpoint_prefix, artifact_prefix))
+        self.assertIsNone(
+            converter.tensor_key(
+                "model.visual.blocks.0.mlp.linear_fc1.weight",
+                checkpoint_prefix,
+                artifact_prefix,
+            )
+        )
 
     def test_source_index_must_have_main_and_mtp_shards(self) -> None:
         with self.assertRaisesRegex(converter.TextOnlyPackagingError, "main and MTP"):
-            converter.verify_source_index({"weight_map": {"a": "model.safetensors"}}, set())
+            converter.verify_source_index(
+                {"weight_map": {"a": "model.safetensors"}},
+                set(),
+                "model.language_model",
+                "model.",
+            )
 
     def test_source_index_rejects_text_tensor_in_unread_shard(self) -> None:
         index = {
@@ -66,7 +86,7 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
         }
         loaded = {"lm_head.weight", "model.language_model.embed_tokens.weight"}
         with self.assertRaisesRegex(converter.TextOnlyPackagingError, "wrong_shard"):
-            converter.verify_source_index(index, loaded)
+            converter.verify_source_index(index, loaded, "model.language_model", "model.")
 
     def test_source_index_accepts_complete_main_shard_text_tensors(self) -> None:
         index = {
@@ -76,7 +96,7 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
             }
         }
         loaded = {"model.language_model.embed_tokens.weight"}
-        converter.verify_source_index(index, loaded)
+        converter.verify_source_index(index, loaded, "model.language_model", "model.")
 
     def test_restores_pinned_tokenizer_byte_for_byte(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -107,8 +127,9 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
             output.mkdir()
 
             expected = "pinned tokenizer source is missing"
+            complete = {name: "0" * 64 for name in converter.TOKENIZER_FILE_NAMES}
             with self.assertRaisesRegex(converter.TextOnlyPackagingError, expected):
-                converter.copy_pinned_tokenizer(tokenizer_source, output, {})
+                converter.verify_pinned_tokenizer(tokenizer_source, complete)
 
     def test_wrong_pinned_tokenizer_hash_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -125,7 +146,23 @@ class ConvertMxfp4TextOnlyTests(unittest.TestCase):
             expected["tokenizer.json"] = "0" * 64
 
             with self.assertRaisesRegex(converter.TextOnlyPackagingError, "tokenizer source hash"):
-                converter.copy_pinned_tokenizer(tokenizer_source, output, expected)
+                converter.verify_pinned_tokenizer(tokenizer_source, expected)
+
+    def test_copy_pinned_tokenizer_does_not_reverify_hashes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tokenizer_source = root / "source-checkpoint"
+            output = root / "artifact"
+            tokenizer_source.mkdir()
+            output.mkdir()
+            verified = {}
+            for name in converter.TOKENIZER_FILE_NAMES:
+                (tokenizer_source / name).write_bytes(f"pinned-{name}".encode())
+                verified[name] = hashlib.sha256(f"pinned-{name}".encode()).hexdigest()
+
+            returned = converter.copy_pinned_tokenizer(tokenizer_source, output, verified)
+
+            self.assertEqual(returned, verified)
 
 
 if __name__ == "__main__":

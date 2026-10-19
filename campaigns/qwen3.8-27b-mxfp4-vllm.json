@@ -9,7 +9,9 @@
     "content_manifest_sha256": "968425eaa11944b2b8d285acb995c034c52ccdc057a661991abfb955aa377182",
     "layers_attr": "model.layers",
     "checkpoint_model_prefix": "model.language_model",
-    "artifact_layers_prefix": "model.layers"
+    "artifact_layers_prefix": "model.layers",
+    "checkpoint_text_prefix": "model.language_model",
+    "artifact_text_prefix": "model."
   },
   "dataset": {
     "id": "RESMP-DEV/ptq-calibration-corpus",
@@ -51,7 +53,8 @@
   "validation": {
     "engine": "vllm",
     "vllm": "0.32.0",
-    "scheme": "CompressedTensorsW4A4Mxfp4",
+    "scheme": "MXFP4A16",
+    "vllm_scheme_alias": "CompressedTensorsW4A4Mxfp4",
     "ampere_behavior": "Marlin W4A16",
     "minimum_compute_capability": 8.0
   },
@@ -64,6 +67,10 @@
     "format": "compressed-tensors",
     "scheme": "MXFP4A16",
     "model_name": "Qwen3.8-27B-compressed-tensors-MXFP4A16-GPTQ",
+    "architecture": "Qwen3_5ForCausalLM",
+    "text_model_type": "qwen3_5_text",
+    "expected_packed_tensor_pairs": 496,
+    "raw_model_safetensors_sha256": "fc5459be218d68b1f2ed59437462ff4aecab40ef74fa81bf46d2cb0a14527e11",
     "target_engine": "vLLM",
     "tokenizer_files": {
       "chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
