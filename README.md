@@ -62,9 +62,9 @@ matched BF16 perplexity or task parity remains unmeasured.
 The A100 precision ladder now supplies the matched quality and throughput
 control missing from that B550 operational run. The current fleet
 recommendation is the private
-`RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100@a100-vllm-0.32.0-v1` at revision
-`d8f9a9e38c082b652d658390e7d76d22ff6ad209`: measured code-holdout perplexity
-increased by 1.6366% while single-request decode was 2.1214x BF16 on the same
+`RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100@a100-vllm-0.32.0-v2` at revision
+`3078fdab0b6ea99a677b7e703629f9a683dbba37`: measured code-holdout perplexity
+increased by 1.6366% while single-request decode was 2.1372x BF16 on the same
 A100-SXM4-80GB. Task accuracy and batched serving remain unmeasured. The
 matched protocol, host-specific hashes, publication receipt, and non-claims are
 in [`docs/qwen38-precision-ladder.md`](docs/qwen38-precision-ladder.md).

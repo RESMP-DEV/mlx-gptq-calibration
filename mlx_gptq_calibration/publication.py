@@ -144,6 +144,32 @@ def verify_remote_files(
     return str(lfs.sha256)
 
 
+def verify_remote_artifact_files(
+    remote_entries: dict[str, Any],
+    expected_files: dict[str, int],
+) -> str:
+    """Verify an existing remote model byte set without requiring current docs."""
+    artifact_names = {
+        name for name in expected_files if name != "README.md" and not name.startswith("receipts/")
+    }
+    if not artifact_names:
+        msg = "prepared publication has no artifact files"
+        raise PublicationError(msg)
+    for name in sorted(artifact_names):
+        entry = remote_entries.get(name)
+        size = expected_files[name]
+        if entry is None or getattr(entry, "size", None) != size:
+            actual = getattr(entry, "size", None)
+            msg = f"remote artifact size mismatch for {name}: expected={size} actual={actual}"
+            raise PublicationError(msg)
+    model_entry = remote_entries["model.safetensors"]
+    lfs = getattr(model_entry, "lfs", None)
+    if not lfs or getattr(lfs, "sha256", None) is None:
+        msg = "remote model.safetensors does not expose LFS SHA-256 metadata"
+        raise PublicationError(msg)
+    return str(lfs.sha256)
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:

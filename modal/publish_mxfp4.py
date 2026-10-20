@@ -16,6 +16,7 @@ from mlx_gptq_calibration.publication import (
     load_object,
     verify_artifact_files,
     verify_receipt_equivalence,
+    verify_remote_artifact_files,
     verify_remote_files,
     verify_result_matches_packaging,
 )
@@ -25,7 +26,7 @@ ARTIFACT = ROOT / "artifacts/Qwen3.8-27B-MXFP4A16-GPTQ-text-only"
 RECEIPTS = ROOT / "receipts"
 LOCAL_RECEIPTS = Path("/root/local-receipts/qwen38-precision-ladder")
 REPO_ID = "RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100"
-TAG = "a100-vllm-0.32.0-v1"
+TAG = "a100-vllm-0.32.0-v2"
 MODEL_SHARD = "1b6cf393189f59763dbd330cf85fefd2508cfca63db7c13aaea8d53da71e1dd7"
 MODEL_CONFIG = "873538762602808f3b895701b479f2f085d917e390d85a9788aa26b796660055"
 
@@ -73,6 +74,13 @@ VOLUME_RECEIPTS = {
 }
 
 PUBLICATION_RECEIPT_NAMES = set(PUBLICATION_RECEIPTS) & set(VOLUME_RECEIPTS)
+REFRESH_RECEIPTS = (
+    "result.json",
+    "perplexity-bf16.json",
+    "perplexity-mxfp4-gptq.json",
+    "throughput-bf16.json",
+    "throughput-mxfp4-gptq.json",
+)
 
 
 def verify_artifact() -> dict[str, str]:
@@ -155,7 +163,7 @@ def commit_revision(commit: Any) -> str:
     memory=8 * 1024,
     timeout=4 * 3600,
 )
-def publish() -> dict[str, Any]:
+def publish(refresh_only: bool = False) -> dict[str, Any]:
     from huggingface_hub import CommitOperationAdd, HfApi
 
     artifact_hashes = verify_artifact()
@@ -170,22 +178,41 @@ def publish() -> dict[str, Any]:
     identity = api.whoami()
     ensure_private_repo(api)
 
-    operations = [
-        CommitOperationAdd(name, str(ARTIFACT / name)) for name in sorted(artifact_hashes)
-    ]
+    operations = []
+    if refresh_only:
+        current_tree = {
+            entry.path: entry
+            for entry in api.list_repo_tree(
+                REPO_ID,
+                repo_type="model",
+                recursive=True,
+                expand=True,
+            )
+        }
+        existing_model_sha256 = verify_remote_artifact_files(current_tree, expected_files)
+        if existing_model_sha256 != MODEL_SHARD:
+            raise PublicationError("existing remote model shard does not match the pin")
+        receipt_names = REFRESH_RECEIPTS
+        commit_message = "Correct measured A100 evidence"
+    else:
+        operations = [
+            CommitOperationAdd(name, str(ARTIFACT / name)) for name in sorted(artifact_hashes)
+        ]
+        receipt_names = PUBLICATION_RECEIPTS
+        commit_message = "Publish measured A100 MXFP4A16 GPTQ artifact"
     operations.append(CommitOperationAdd("README.md", "/root/qwen38_mxfp4_model_card.md"))
     operations.extend(
         CommitOperationAdd(
             f"receipts/qwen38-precision-ladder/{name}",
             str(LOCAL_RECEIPTS / name),
         )
-        for name in PUBLICATION_RECEIPTS
+        for name in receipt_names
     )
     commit = api.create_commit(
         repo_id=REPO_ID,
         repo_type="model",
         operations=operations,
-        commit_message="Publish measured A100 MXFP4A16 GPTQ artifact",
+        commit_message=commit_message,
         num_threads=5,
     )
     revision = commit_revision(commit)
@@ -207,7 +234,8 @@ def publish() -> dict[str, Any]:
         raise PublicationError("remote model.safetensors SHA-256 does not match the pin")
 
     result = {
-        "schema": "mlx-gptq-calibration/hf-publication/1",
+        "schema": "mlx-gptq-calibration/hf-publication/2",
+        "mode": "evidence-refresh" if refresh_only else "initial-publication",
         "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "repository": REPO_ID,
         "revision": revision,
@@ -225,6 +253,7 @@ def publish() -> dict[str, Any]:
             "Publication proves byte identity and remote metadata, not a new model-quality run.",
             "The measured recommendation remains specific to one A100-SXM4-80GB and vLLM 0.32.0.",
             "Task accuracy and batched serving capacity remain unmeasured.",
+            "An evidence refresh does not re-quantize or alter model bytes.",
         ],
     }
     return result
@@ -232,7 +261,7 @@ def publish() -> dict[str, Any]:
 
 @app.local_entrypoint()
 def main() -> None:
-    result = publish.remote()
+    result = publish.remote(refresh_only=os.environ.get("PUBLICATION_REFRESH_ONLY") == "1")
     output = Path("receipts/qwen38-precision-ladder/hf-publication.json")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")

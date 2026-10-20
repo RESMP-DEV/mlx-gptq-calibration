@@ -79,10 +79,11 @@ CUDA 13.3, vLLM 0.32.0, torch 2.13.0+cu130, transformers 5.19.0,
 causal-conv1d 1.7.0, and flash-linear-attention 0.5.2:
 
 - **Held-out perplexity.** Sliding-window negative log-likelihood over the
-  holdout at 2,048-token windows with 512-token stride, 65 evaluated windows
-  (the 64-window cap plus the carried-context final window), scored only on
-  tokens beyond the carried context. Reported as perplexity plus
-  evaluated-token count, so a coverage difference cannot masquerade as a
+  holdout at 2,048-token windows with 512-token stride and the 64-window cap.
+  The harness uses explicit causal-logit cross entropy and scores only the
+  final positions not already carried by the prior window; the initial corpus
+  token has no predecessor and is not counted. Reported as perplexity plus
+  evaluated-label count, so a coverage difference cannot masquerade as a
   quality difference.
 - **Throughput.** Deterministic decode under vLLM 0.32.0 with a fixed
   prompt, fixed seed, fixed `max_model_len`, fixed `max_num_batched_tokens`,
@@ -96,13 +97,13 @@ hashes, the holdout hash, the runtime versions, and the live GPU identity.
 
 | Arm | Held-out perplexity | Mean NLL | Single-request decode |
 | --- | ---: | ---: | ---: |
-| BF16 reference | 2.4590323662 | 0.8997679255 | 28.58 tok/s |
-| MXFP4A16 GPTQ | 2.4992772729 | 0.9160015992 | 60.63 tok/s |
+| BF16 reference | 2.4590172978 | 0.8997617977 | 28.78 tok/s |
+| MXFP4A16 GPTQ | 2.4992624858 | 0.9159956827 | 61.51 tok/s |
 
 The MXFP4 arm has a 1.016366 perplexity ratio (a 1.6366% increase) and a
-0.016234 nats/token penalty while decoding 2.1214x faster than BF16. Both arms
+0.016234 nats/token penalty while decoding 2.1372x faster than BF16. Both arms
 used the same A100-SXM4-80GB device name, identical holdout bytes, identical
-34,304-token coverage, and identical vLLM settings.
+34,303-causal-label coverage, and identical vLLM settings.
 
 Current recommendation: serve the A100-built MXFP4A16 GPTQ text-only artifact
 when single-request A100 decode speed matters more than a 1.64% code-corpus
@@ -115,8 +116,8 @@ The consolidated evidence record is
 
 The recommended artifact is published privately as
 `RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100`, pinned revision
-`d8f9a9e38c082b652d658390e7d76d22ff6ad209` and tag
-`a100-vllm-0.32.0-v1`. The publisher verified all ten packaged file hashes,
+`3078fdab0b6ea99a677b7e703629f9a683dbba37` and tag
+`a100-vllm-0.32.0-v2`. The publisher verified all ten packaged file hashes,
 the exact 20-file remote set, private visibility, and the remote LFS SHA-256
 before recording [`hf-publication.json`](../receipts/qwen38-precision-ladder/hf-publication.json).
 

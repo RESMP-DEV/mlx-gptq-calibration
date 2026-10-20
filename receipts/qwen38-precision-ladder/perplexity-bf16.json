@@ -48,17 +48,17 @@
     "One variant, one GPU, one run; no cross-host or cross-protocol pooling."
   ],
   "perplexity": {
-    "evaluated_tokens": 34304,
-    "mean_nll": 0.8997679254901942,
-    "model_load_seconds": 20.412,
-    "perplexity": 2.4590323662008506,
+    "evaluated_tokens": 34303,
+    "mean_nll": 0.8997617976830846,
+    "model_load_seconds": 19.85,
+    "perplexity": 2.4590172977710028,
     "seq_len": 2048,
     "stride": 512,
-    "windows": 65
+    "windows": 64
   },
   "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.39",
   "python": "3.12.1",
-  "recorded_at": "2026-10-20T01:27:14+00:00",
+  "recorded_at": "2026-10-20T02:44:01+00:00",
   "runtime": {
     "torch": "2.13.0+cu130",
     "transformers": "5.19.0",

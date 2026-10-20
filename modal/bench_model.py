@@ -68,6 +68,59 @@ def gpu_state() -> list[dict[str, Any]]:
     ]
 
 
+def window_plan(
+    total_tokens: int,
+    seq_len: int,
+    stride: int,
+    max_chunks: int,
+) -> list[tuple[int, int, int]]:
+    """Return `(begin, end, scored_tokens)` for causal sliding-window scoring.
+
+    Hugging Face causal models shift labels internally, so a label at position
+    ``i`` is predicted from the prefix before it. Position zero therefore has no
+    predecessor and is never scored in a window. Every later token is scored
+    exactly once: in the first window if it is below ``seq_len``, otherwise in
+    the first window whose carried context reaches its predecessor.
+    """
+    if total_tokens <= 0:
+        raise BenchError(f"token stream is empty: {total_tokens}")
+    if seq_len <= 0:
+        raise BenchError(f"seq_len must be positive: {seq_len}")
+    if stride <= 0:
+        raise BenchError(f"stride must be positive: {stride}")
+    if max_chunks <= 0:
+        raise BenchError(f"max_chunks must be positive: {max_chunks}")
+
+    windows: list[tuple[int, int, int]] = []
+    begin = 0
+    previous_end = 0
+    while begin < total_tokens and len(windows) < max_chunks:
+        end = min(begin + seq_len, total_tokens)
+        if previous_end < begin:
+            raise BenchError(
+                f"window plan leaves an unscored gap: previous_end={previous_end} begin={begin}"
+            )
+        scored = end - max(begin + 1, previous_end)
+        windows.append((begin, end, scored))
+        previous_end = end
+        if end == total_tokens:
+            break
+        begin += stride
+    return windows
+
+
+def causal_score_slices(length: int, scored_tokens: int) -> tuple[slice, slice]:
+    """Return logits/label slices for the final causal-scored positions."""
+    if length <= 0:
+        raise BenchError(f"window length must be positive: {length}")
+    if not 0 <= scored_tokens < length:
+        raise BenchError(f"scored token count must be in [0, {length - 1}]: {scored_tokens}")
+    return (
+        slice(length - scored_tokens - 1, length - 1),
+        slice(length - scored_tokens, length),
+    )
+
+
 def model_identity(model: Path) -> dict[str, Any]:
     config_path = model / "config.json"
     if not config_path.is_file():
@@ -127,26 +180,26 @@ def perplexity(
     load_seconds = time.perf_counter() - t0
     loaded.eval()
 
+    windows = window_plan(
+        total,
+        seq_len=seq_len,
+        stride=stride,
+        max_chunks=max_chunks,
+    )
     nll = 0.0
     counted = 0
-    prev_end = 0
-    begin = 0
-    chunks = 0
     with torch.no_grad():
-        while begin < total and chunks < max_chunks:
-            end = min(begin + seq_len, total)
+        for begin, end, scored in windows:
             input_ids = torch.tensor([ids[begin:end]], device="cuda:0")
-            target = input_ids.clone()
-            # Only score tokens beyond the context carried from the previous window.
-            target[:, : prev_end - begin] = -100
-            out = loaded(input_ids, labels=target)
-            nll += out.loss.item() * (end - max(prev_end, begin))
-            counted += end - max(prev_end, begin)
-            prev_end = end
-            if end == total:
-                break
-            begin += stride
-            chunks += 1
+            out = loaded(input_ids)
+            logits_slice, labels_slice = causal_score_slices(end - begin, scored)
+            loss_sum = torch.nn.functional.cross_entropy(
+                out.logits[0, logits_slice].float(),
+                input_ids[0, labels_slice],
+                reduction="sum",
+            )
+            nll += loss_sum.item()
+            counted += scored
     del loaded
     torch.cuda.empty_cache()
 
@@ -157,7 +210,7 @@ def perplexity(
         "perplexity": ppl,
         "mean_nll": nll / counted if counted else None,
         "evaluated_tokens": counted,
-        "windows": chunks + 1,
+        "windows": len(windows),
         "seq_len": seq_len,
         "stride": stride,
         "model_load_seconds": round(load_seconds, 3),
@@ -225,6 +278,11 @@ def run_bench(args: argparse.Namespace) -> None:
     """
     versions = package_versions()
     gpus = gpu_state()
+    if args.require_gpu and not all(gpu["name"] == args.require_gpu for gpu in gpus):
+        raise BenchError(
+            f"required GPU is {args.require_gpu!r}, but live devices are "
+            f"{[gpu['name'] for gpu in gpus]}"
+        )
     identity = model_identity(args.model)
     result: dict[str, Any] = {
         "schema": "mlx-gptq-calibration/variant-bench/1",
@@ -280,6 +338,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--receipt", type=Path, required=True)
     p.add_argument("--label", required=True)
     p.add_argument("--mode", choices=("perplexity", "throughput", "all"), default="all")
+    p.add_argument("--require-gpu")
     p.add_argument("--dtype", choices=("auto", "bfloat16", "float16"), default="bfloat16")
     p.add_argument("--seq-len", type=int, default=2048)
     p.add_argument("--stride", type=int, default=512)

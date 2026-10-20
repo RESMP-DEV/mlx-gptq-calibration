@@ -38,7 +38,7 @@
   ],
   "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.39",
   "python": "3.12.1",
-  "recorded_at": "2026-10-20T01:40:15+00:00",
+  "recorded_at": "2026-10-20T02:26:46+00:00",
   "runtime": {
     "torch": "2.13.0+cu130",
     "transformers": "5.19.0",
@@ -46,7 +46,7 @@
   },
   "schema": "mlx-gptq-calibration/variant-bench/1",
   "throughput": {
-    "decode_seconds": 2.1112,
+    "decode_seconds": 2.0809,
     "finish_reason": "length",
     "generated_tokens": 128,
     "max_tokens": 128,
@@ -61,6 +61,6 @@
       "max_num_seqs": 128,
       "seed": 17
     },
-    "tokens_per_second": 60.63
+    "tokens_per_second": 61.51
   }
 }

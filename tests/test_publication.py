@@ -11,6 +11,7 @@ from mlx_gptq_calibration.publication import (
     build_expected_files,
     verify_artifact_files,
     verify_receipt_equivalence,
+    verify_remote_artifact_files,
     verify_remote_files,
     verify_result_matches_packaging,
 )
@@ -135,6 +136,20 @@ class PublicationTests(unittest.TestCase):
         del entries["README.md"]
         with self.assertRaisesRegex(PublicationError, "README.md"):
             verify_remote_files(entries, expected)
+
+    def test_remote_artifact_subset_verification_allows_stale_evidence(self) -> None:
+        entries = {
+            "model.safetensors": SimpleNamespace(
+                size=10,
+                lfs=SimpleNamespace(sha256=digest(b"model-bytes")),
+            ),
+            "config.json": SimpleNamespace(size=12),
+            "README.md": SimpleNamespace(size=1),
+        }
+        self.assertEqual(
+            verify_remote_artifact_files(entries, {"model.safetensors": 10, "config.json": 12}),
+            digest(b"model-bytes"),
+        )
 
 
 if __name__ == "__main__":

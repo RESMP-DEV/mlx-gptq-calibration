@@ -48,19 +48,19 @@ image = (
     .add_local_file("modal/bench_model.py", "/root/bench_model.py")
 )
 app = modal.App("qwen38-variant-bench")
+EXPECTED_GPU_NAME = "NVIDIA A100-SXM4-80GB"
 
 
-# The BF16 reference arm holds ~50 GiB of BF16 text weights, so it does not
-# fit a 40 GB A100. Request the 80 GB variant explicitly: a bare "A100"
-# selector may be satisfied by the 40 GB card.
+# The BF16 reference arm holds ~50 GiB of BF16 text weights, and A100 PCIe and
+# SXM4 have different memory bandwidth. Modal exposes one generic A100-80GB
+# request, so the child process rejects any live device other than the measured
+# SXM4 name before loading model weights.
 #
 # The two arms are benchmarked in separate containers, and Modal can hand out
 # different A100 SKUs (SXM4 vs PCIe) for the same selector. Those SKUs have
 # different memory bandwidth, so a throughput comparison across them would be
-# unfair. The bench therefore records the live GPU identity in every receipt
-# and the comparison is only valid when the two arms report the same device
-# name. The measured perplexity comparison is unaffected, because it is a
-# numeric result on identical input rather than a wall-clock measurement.
+# unfair. The bench therefore records and checks the live GPU identity in every
+# receipt; the comparison is only valid when both arms report this exact name.
 @app.function(
     image=image,
     volumes={str(ROOT): VOLUME},
@@ -93,6 +93,8 @@ def bench(model_path: str, label: str, receipt_path: str, mode: str) -> dict:
             label,
             "--mode",
             mode,
+            "--require-gpu",
+            EXPECTED_GPU_NAME,
             "--seq-len",
             "2048",
             "--stride",
@@ -127,6 +129,7 @@ def main() -> None:
     import os
 
     only = os.environ.get("BENCH_ONLY")
+    mode_only = os.environ.get("BENCH_MODE")
     results = {}
     for label, (model, receipt) in variants.items():
         if only and label != only:
@@ -134,16 +137,21 @@ def main() -> None:
         print(f"=== benchmarking {label}: {model} ===", flush=True)
         arm = {}
         for mode, suffix in (("perplexity", "perplexity"), ("throughput", "throughput")):
+            if mode_only and mode != mode_only:
+                continue
             mode_receipt = receipt.replace(".json", f"-{suffix}.json")
             print(f"--- {label} / {mode} ---", flush=True)
             part = bench.remote(model, label, mode_receipt, mode)
             arm[mode] = part
-        arm["identity"] = arm["perplexity"]["identity"]
-        arm["gpus"] = arm["perplexity"]["gpus"]
-        arm["runtime"] = arm["perplexity"]["runtime"]
-        arm["holdout"] = arm["perplexity"]["holdout"]
-        arm["perplexity"] = arm["perplexity"]["perplexity"]
-        arm["throughput"] = arm["throughput"]["throughput"]
+        first = next(iter(arm.values()))
+        arm["identity"] = first["identity"]
+        arm["gpus"] = first["gpus"]
+        arm["runtime"] = first["runtime"]
+        arm["holdout"] = first["holdout"]
+        if "perplexity" in arm:
+            arm["perplexity"] = arm["perplexity"]["perplexity"]
+        if "throughput" in arm:
+            arm["throughput"] = arm["throughput"]["throughput"]
         results[label] = arm
     Path("build/reports").mkdir(parents=True, exist_ok=True)
     Path("build/reports/variant-bench-summary.json").write_text(

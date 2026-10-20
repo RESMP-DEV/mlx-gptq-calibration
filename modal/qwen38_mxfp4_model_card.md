@@ -50,18 +50,18 @@ protocol; do not interchange them by name alone.
 
 ## Measured A100 result
 
-Both arms used the same source revision, holdout bytes, 34,304 evaluated
+Both arms used the same source revision, holdout bytes, 34,303 evaluated
 tokens, `NVIDIA A100-SXM4-80GB`, vLLM `0.32.0`, torch `2.13.0+cu130`,
 Transformers `5.19.0`, causal-conv1d `1.7.0`, and flash-linear-attention
 `0.5.2`.
 
 | Arm | Holdout perplexity | Mean NLL | Single-request decode |
 | --- | ---: | ---: | ---: |
-| BF16 reference | 2.4590323662 | 0.8997679255 | 28.58 tok/s |
-| MXFP4A16 GPTQ | 2.4992772729 | 0.9160015992 | 60.63 tok/s |
+| BF16 reference | 2.4590172978 | 0.8997617977 | 28.78 tok/s |
+| MXFP4A16 GPTQ | 2.4992624858 | 0.9159956827 | 61.51 tok/s |
 
 The MXFP4 build has a 1.6366% perplexity increase and 0.016234 nats/token NLL
-penalty while decoding 2.1214x faster. It is recommended when single-request
+penalty while decoding 2.1372x faster. It is recommended when single-request
 A100 decode speed matters more than that measured code-corpus quality penalty.
 
 On Ampere this format uses vLLM's Marlin weight-only W4A16 path. It is not
