@@ -55,7 +55,7 @@ class BenchModelTests(unittest.TestCase):
             bench_model.causal_score_slices(2048, 2048)
 
     def test_window_plan_rejects_a_gap(self) -> None:
-        with self.assertRaisesRegex(bench_model.BenchError, "unscored gap"):
+        with self.assertRaisesRegex(bench_model.BenchError, "stride"):
             bench_model.window_plan(
                 5000,
                 seq_len=1024,

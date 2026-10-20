@@ -18,6 +18,7 @@
       "value": "1b6cf393189f59763dbd330cf85fefd2508cfca63db7c13aaea8d53da71e1dd7"
     }
   },
+  "quantization_gpu": "NVIDIA A100-SXM4-40GB",
   "raw_model_sha256": "7efcd51f35ba23a60bc0ac950a40d52f94014c6636595f3e39f045ac5324a5d7",
   "recorded_at": "2026-10-20T00:39:39+00:00",
   "runtime": {

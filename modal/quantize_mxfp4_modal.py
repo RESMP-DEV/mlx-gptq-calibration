@@ -28,6 +28,7 @@ RECEIPTS = ROOT / "receipts"
 RAW_OUTPUT = ROOT / "artifacts/Qwen3.8-27B-MXFP4A16-GPTQ-raw"
 FINAL_OUTPUT = ROOT / "artifacts/Qwen3.8-27B-MXFP4A16-GPTQ-text-only"
 CAMPAIGN_PATH = ROOT / "campaigns/qwen3.8-27b-mxfp4-vllm-a100.json"
+EXPECTED_QUANTIZATION_GPU = "NVIDIA A100-SXM4-40GB"
 
 VOLUME = modal.Volume.from_name("qwen38-models", create_if_missing=True)
 
@@ -132,7 +133,19 @@ def build_campaign(record_hash: str, versions: dict[str, str]) -> dict[str, Any]
 
 def write_campaign(campaign: dict[str, Any]) -> None:
     CAMPAIGN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CAMPAIGN_PATH.write_text(json.dumps(campaign, indent=2, sort_keys=True) + "\n")
+    temporary = CAMPAIGN_PATH.with_suffix(".tmp")
+    temporary.write_text(json.dumps(campaign, indent=2, sort_keys=True) + "\n")
+    temporary.replace(CAMPAIGN_PATH)
+
+
+def verify_quantization_gpu() -> None:
+    import torch
+
+    if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
+        raise RuntimeError("quantization requires exactly one CUDA GPU")
+    name = torch.cuda.get_device_name(0)
+    if name != EXPECTED_QUANTIZATION_GPU:
+        raise RuntimeError(f"quantization GPU is {name!r}, expected {EXPECTED_QUANTIZATION_GPU!r}")
 
 
 def run(command: list[str]) -> None:
@@ -143,13 +156,14 @@ def run(command: list[str]) -> None:
 @app.function(
     image=quant_image,
     volumes={str(ROOT): VOLUME},
-    gpu="A100-80GB",
+    gpu="A100-40GB",
     cpu=12,
     memory=96 * 1024,
     timeout=3 * 3600,
 )
 def quantize() -> dict[str, Any]:
     started = time.perf_counter()
+    verify_quantization_gpu()
     source_receipt = json.loads(SOURCE_RECEIPT.read_text())
     if source_receipt.get("status") != "verified":
         raise RuntimeError("source snapshot is not verified")
@@ -252,6 +266,7 @@ def quantize() -> dict[str, Any]:
         "schema": "mlx-gptq-calibration/modal-mxfp4-quantize/1",
         "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "source_status": source_receipt["status"],
+        "quantization_gpu": EXPECTED_QUANTIZATION_GPU,
         "source_manifest": source_receipt["pipeline_content_manifest_sha256"],
         "runtime": versions,
         "runtime_provenance": campaign["runtime_provenance"],

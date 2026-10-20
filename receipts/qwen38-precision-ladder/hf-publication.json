@@ -11,7 +11,7 @@
     "tokenizer_config.json": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27",
     "vocab.json": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
   },
-  "commit_url": "https://huggingface.co/RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100/commit/3078fdab0b6ea99a677b7e703629f9a683dbba37",
+  "commit_url": "https://huggingface.co/RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100/commit/95709c64d92b8bc9747388638d6da00db4c0adff",
   "huggingface_hub_version": "2.2.0",
   "mode": "evidence-refresh",
   "non_claims": [
@@ -33,12 +33,12 @@
     "receipts/qwen38-precision-ladder/throughput-bf16.json",
     "receipts/qwen38-precision-ladder/throughput-mxfp4-gptq.json"
   ],
-  "recorded_at": "2026-10-20T02:50:38+00:00",
+  "recorded_at": "2026-10-20T02:56:12+00:00",
   "remote_file_count": 20,
   "remote_model_bytes": 18027280824,
   "remote_model_lfs_sha256": "1b6cf393189f59763dbd330cf85fefd2508cfca63db7c13aaea8d53da71e1dd7",
   "repository": "RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100",
-  "revision": "3078fdab0b6ea99a677b7e703629f9a683dbba37",
+  "revision": "95709c64d92b8bc9747388638d6da00db4c0adff",
   "schema": "mlx-gptq-calibration/hf-publication/2",
-  "tag": "a100-vllm-0.32.0-v2"
+  "tag": "a100-vllm-0.32.0-v3"
 }

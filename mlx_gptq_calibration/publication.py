@@ -12,6 +12,13 @@ class PublicationError(ValueError):
     pass
 
 
+def require_basename(name: str, *, kind: str) -> str:
+    if not name or "/" in name or "\\" in name or name in {".", ".."} or "\x00" in name:
+        msg = f"invalid {kind} name: {name!r}"
+        raise PublicationError(msg)
+    return name
+
+
 def load_object(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text())
@@ -35,6 +42,8 @@ def verify_artifact_files(
     if not isinstance(expected, dict) or not expected:
         msg = "packaging receipt has no non-empty output_files object"
         raise PublicationError(msg)
+    for name in expected:
+        require_basename(name, kind="artifact file")
     actual_names = {path.name for path in artifact.iterdir() if path.is_file()}
     if actual_names != set(expected):
         msg = (
@@ -104,9 +113,13 @@ def build_expected_files(
     model_card: Path,
     receipt_paths: dict[str, Path],
 ) -> dict[str, int]:
-    files = {name: (artifact / name).stat().st_size for name in sorted(artifact_hashes)}
+    files = {}
+    for name in sorted(artifact_hashes):
+        require_basename(name, kind="artifact file")
+        files[name] = (artifact / name).stat().st_size
     files["README.md"] = model_card.stat().st_size
     for name in sorted(receipt_paths):
+        require_basename(name, kind="receipt")
         path = receipt_paths[name]
         if not path.is_file():
             msg = f"publication receipt missing: {path}"

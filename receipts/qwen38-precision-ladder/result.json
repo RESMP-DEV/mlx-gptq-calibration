@@ -94,11 +94,12 @@
     "artifact": {
       "config_sha256": "873538762602808f3b895701b479f2f085d917e390d85a9788aa26b796660055",
       "huggingface_repository": "RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100",
-      "huggingface_revision": "3078fdab0b6ea99a677b7e703629f9a683dbba37",
-      "huggingface_tag": "a100-vllm-0.32.0-v2",
+      "huggingface_revision": "95709c64d92b8bc9747388638d6da00db4c0adff",
+      "huggingface_tag": "a100-vllm-0.32.0-v3",
       "model_safetensors_sha256": "1b6cf393189f59763dbd330cf85fefd2508cfca63db7c13aaea8d53da71e1dd7",
       "path_on_modal_volume": "/root/model-data/artifacts/Qwen3.8-27B-MXFP4A16-GPTQ-text-only",
       "publication_receipt": "hf-publication.json",
+      "quantization_gpu": "NVIDIA A100-SXM4-40GB",
       "raw_model_safetensors_sha256": "7efcd51f35ba23a60bc0ac950a40d52f94014c6636595f3e39f045ac5324a5d7"
     },
     "precision": "MXFP4A16 GPTQ",

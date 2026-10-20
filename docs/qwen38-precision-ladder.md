@@ -21,13 +21,14 @@ Both arms are the *same* upstream model, `Qwen/Qwen3.8-27B` at revision
 `Qwen3_5ForCausalLM` text-only graph with the same tokenizer bytes, and served
 by the same vLLM build with identical settings.
 
-### Why weight-only arms
+### Why BF16 activations in both arms
 
 A100 is SM80 (Ampere). Native FP8 *activation* compute needs SM89+; on Ampere
-vLLM would run FP8 as weight-only dequant anyway. Choosing weight-only arms
-(W8A16 and W4A16) isolates bit-width as the single varying variable, so a
-measured difference is attributable to precision rather than to a kernel
-fallback. It also matches the MXFP4A16 artifact that already exists.
+vLLM would run lower-precision activations through dequantizing fallback paths.
+Keeping activations BF16 in both defined arms means weight representation is
+the precision variable: BF16 weights provide the matched reference, while
+MXFP4 packed weights execute through the Marlin W4A16 path. This avoids
+attributing a framework fallback to model precision.
 
 ## Held-out corpus
 
@@ -65,6 +66,10 @@ MXFP4 artifact and the corpus used to score it are provably disjoint.
    (`scripts/quantize_mxfp4_vllm.py`, `scripts/convert_mxfp4_text_only.py`)
    rather than a reimplementation, so the same recipe, guards, and receipts
    apply.
+   The historical artifact was solved on one `NVIDIA A100-SXM4-40GB`; all
+   quality and throughput measurements below were run on one
+   `NVIDIA A100-SXM4-80GB`. These are distinct provenance and measurement
+   boundaries, and GPTQ is not assumed bitwise reproducible across GPU models.
 4. The A100 campaign records, per runtime package, the B550 pin and the
    A100-measured value in `runtime_provenance`, so a reader can tell a
    reviewed pin from a live measurement. The only differences are the torch
@@ -116,8 +121,8 @@ The consolidated evidence record is
 
 The recommended artifact is published privately as
 `RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100`, pinned revision
-`3078fdab0b6ea99a677b7e703629f9a683dbba37` and tag
-`a100-vllm-0.32.0-v2`. The publisher verified all ten packaged file hashes,
+`95709c64d92b8bc9747388638d6da00db4c0adff` and tag
+`a100-vllm-0.32.0-v3`. The publisher verified all ten packaged file hashes,
 the exact 20-file remote set, private visibility, and the remote LFS SHA-256
 before recording [`hf-publication.json`](../receipts/qwen38-precision-ladder/hf-publication.json).
 

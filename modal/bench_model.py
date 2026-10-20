@@ -88,6 +88,8 @@ def window_plan(
         raise BenchError(f"seq_len must be positive: {seq_len}")
     if stride <= 0:
         raise BenchError(f"stride must be positive: {stride}")
+    if stride > seq_len:
+        raise BenchError(f"stride ({stride}) must not exceed seq_len ({seq_len})")
     if max_chunks <= 0:
         raise BenchError(f"max_chunks must be positive: {max_chunks}")
 
@@ -168,7 +170,7 @@ def perplexity(
     if total <= seq_len:
         raise BenchError(f"holdout too short for seq_len={seq_len}: {total} tokens")
 
-    torch_dtype = getattr(torch, dtype)
+    torch_dtype = dtype if dtype == "auto" else getattr(torch, dtype)
     t0 = time.perf_counter()
     loaded = AutoModelForCausalLM.from_pretrained(
         str(model),
@@ -243,9 +245,11 @@ def throughput(
     sampling = SamplingParams(temperature=0.0, max_tokens=max_tokens, seed=seed)
     # Warmup (compiles/kernels) then timed.
     llm.generate([prompt], sampling)
-    torch_t0 = time.perf_counter()
+    started = time.perf_counter()
     outputs = llm.generate([prompt], sampling)
-    elapsed = time.perf_counter() - torch_t0
+    elapsed = time.perf_counter() - started
+    if not outputs or not outputs[0].outputs:
+        raise BenchError("vLLM generation returned empty outputs")
     completion = outputs[0].outputs[0]
     ntok = len(completion.token_ids)
     return {

@@ -25,6 +25,7 @@ not a universal leaderboard result.
 - Architecture: `Qwen3_5ForCausalLM`, text-only graph
 - Quantization: calibrated MXFP4A16 GPTQ, E2M1 weights, E8M0 group scales,
   group size 32; BF16 activations and LM head
+- Quantization hardware: one NVIDIA A100-SXM4-40GB
 - Quantized text linear tensors: 496
 - `model.safetensors` SHA-256:
   `1b6cf393189f59763dbd330cf85fefd2508cfca63db7c13aaea8d53da71e1dd7`

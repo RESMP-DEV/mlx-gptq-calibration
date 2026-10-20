@@ -26,7 +26,7 @@ ARTIFACT = ROOT / "artifacts/Qwen3.8-27B-MXFP4A16-GPTQ-text-only"
 RECEIPTS = ROOT / "receipts"
 LOCAL_RECEIPTS = Path("/root/local-receipts/qwen38-precision-ladder")
 REPO_ID = "RESMP-DEV/Qwen3.8-27B-MXFP4A16-GPTQ-A100"
-TAG = "a100-vllm-0.32.0-v2"
+TAG = "a100-vllm-0.32.0-v3"
 MODEL_SHARD = "1b6cf393189f59763dbd330cf85fefd2508cfca63db7c13aaea8d53da71e1dd7"
 MODEL_CONFIG = "873538762602808f3b895701b479f2f085d917e390d85a9788aa26b796660055"
 
@@ -216,7 +216,6 @@ def publish(refresh_only: bool = False) -> dict[str, Any]:
         num_threads=5,
     )
     revision = commit_revision(commit)
-    ensure_tag(api, revision)
 
     remote_tree = {
         entry.path: entry
@@ -232,6 +231,7 @@ def publish(refresh_only: bool = False) -> dict[str, Any]:
     model_entry = remote_tree["model.safetensors"]
     if remote_model_sha256 != MODEL_SHARD:
         raise PublicationError("remote model.safetensors SHA-256 does not match the pin")
+    ensure_tag(api, revision)
 
     result = {
         "schema": "mlx-gptq-calibration/hf-publication/2",

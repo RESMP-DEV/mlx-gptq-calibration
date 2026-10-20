@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from mlx_gptq_calibration.publication import (
     PublicationError,
     build_expected_files,
+    require_basename,
     verify_artifact_files,
     verify_receipt_equivalence,
     verify_remote_artifact_files,
@@ -150,6 +151,12 @@ class PublicationTests(unittest.TestCase):
             verify_remote_artifact_files(entries, {"model.safetensors": 10, "config.json": 12}),
             digest(b"model-bytes"),
         )
+
+    def test_publication_names_must_be_basenames(self) -> None:
+        for name in ("../escape", "nested/name", "C:\\escape", ".."):
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(PublicationError, "invalid"):
+                    require_basename(name, kind="test file")
 
 
 if __name__ == "__main__":
